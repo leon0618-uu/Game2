@@ -1,13 +1,16 @@
+using System.Collections.Generic;
+using Starfall.Core.Command;
 using Starfall.Core.Model;
 
 namespace Starfall.Core.Decree
 {
     /// <summary>
     /// 颁布律令。DecreeId 由 caller 提供（确定性）。
+    /// 实际注入 _decrees 由 caller 在 Submit 前完成；本 Command 仅发出 DecreeApplied 事件。
     /// </summary>
-    public sealed class ApplyDecreeCommand : Starfall.Core.Command.ICommand
+    public sealed class ApplyDecreeCommand : ICommand
     {
-        public int CommandId { get; set; }  // 通过 BattleRunner 显式传入
+        public int CommandId { get; set; }
         public Decree Decree { get; }
 
         public ApplyDecreeCommand(int commandId, Decree decree)
@@ -18,10 +21,10 @@ namespace Starfall.Core.Decree
 
         public bool CanExecute(BattleState state) => true;
 
-        public CommandResult Execute(BattleState state, out System.Collections.Generic.IReadOnlyList<Starfall.Core.Command.BattleEvent> events)
+        public CommandResult Execute(BattleState state, out IReadOnlyList<BattleEvent> events)
         {
-            events = System.Array.Empty<Starfall.Core.Command.BattleEvent>();
-            return CommandResult.Success;  // 注册表由外部管理（本任务不内嵌）
+            events = new[] { new BattleEvent(BattleEventKind.DecreeApplied, -1, null, null) };
+            return CommandResult.Success;
         }
     }
 }
