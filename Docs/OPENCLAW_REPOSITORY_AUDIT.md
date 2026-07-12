@@ -1582,18 +1582,25 @@ Push:     不 Push / 不合并 / 不开始 Task 02
 
 - §1.1 / §5.1 / §6.1(b) / §9.1 M11 仍记录「文档声明 6.3 LTS vs 实测 6.5」的不一致事实
 - 这是审计方法的正确保留——审计 doc 是「审计时点的事实快照」，不应被事后改写以匹配新现实
-- 当前状态以 §9.7 为准
+- 当前状态以 §9.7 + §9.8 为准
 
-**新发现的偏差（需用户后续裁决）**：
+### 9.8 U-B Resolution（用户裁决后补记）
 
-- **U-B：`AGENTS.md` §1 第 18 行仍有「Unity 6.3 LTS + URP」字样**
-  - 来源：`AGENTS.md` L18
-  - 不一致事实：与已更新的 `Docs/01 §2` / `Docs/02 §1` 不再同步
-  - 建议处置：同 Option A（改为 `Unity 6.5 (6000.5.3f1) + URP`）
-  - **⚠️ 修改 `AGENTS.md` 需用户单独批准**（按 §13.13 安全红线：「修改系统、OpenClaw、Gateway、计划任务或代理配置」需先获得确认）
-  - 由 Lead 标记为 **U-B 待用户裁决**，未自动修复
+**裁决时间**：2026-07-12 20:49 GMT+8
+**裁决选项**：同 U-A Option A（用户明示「同 A」）
+**依据**：AGENTS.md L18 与 Docs/01+02 同一性质不一致事实，避免文档间口径漂移。
 
-**9 项联合进入条件状态更新**：
+**实际变更**：
+
+| 文件 | 行号 | 旧 | 新 |
+|---|---|---|---|
+| `AGENTS.md` | L18 | `在 Unity 6.3 LTS + URP 中完成...` | `在 Unity 6.5 (6000.5.3f1) + URP 中完成...` |
+
+**U-B 状态**：🔴 → ✅ **RESOLVED**（用户 20:49 显式批准）
+
+**安全红线触发记录**：本变更触及「修改团队规则文件」边界，已由用户在 20:49 显式批准；按 `AGENTS.md §13.13`「修改系统、OpenClaw、Gateway、计划任务或代理配置」要求「先获得确认」，本次确认已落地。
+
+**9 项联合进入条件最终状态**：
 
 | # | 条件 | 状态 |
 |---|---|---|
@@ -1607,7 +1614,7 @@ Push:     不 Push / 不合并 / 不开始 Task 02
 | (h) | ADR-0001 含 FNV-1a 64 位哈希字段顺序 | 🟡 Planned Gap，Task 02 内合并 |
 | (i) | Core 依赖守卫测试建立 | 🟡 Planned Gap — Task 02 G-C |
 
-**Task 02 READINESS 更新**：`READY WITH CONDITIONS` → `READY WITH CONDITIONS`（**U-A 已解除；剩余 8 项均为 Task 02 内部交付物，不阻塞启动**）。如用户批准进入 Task 02，则按 §6.1 + §9.2.2 联合条件立即起草 Task Package。
+**Task 02 READINESS 更新**：`READY WITH CONDITIONS` → `READY WITH CONDITIONS`（**U-A + U-B 均已解除；剩余 8 项均为 Task 02 内部交付物，不阻塞启动**）。用户已于 20:49 GMT+8 批准进入 Task 02；按 §6.1 + §9.2.2 联合条件立即起草 Task Package（不直接派单，待 Task Package 批准后再 spawn）。
 
 ## 已知偏差与建议（QA Phase C-1 重写）
 
