@@ -19,6 +19,12 @@ namespace Starfall.Core.Model
         private readonly List<Starfall.Core.Status.StatusInstance> _statuses;
         public IReadOnlyList<Starfall.Core.Status.StatusInstance> Statuses => _statuses;
 
+        private readonly Starfall.Core.Anchor.AnchorRegistry _anchors;
+        public Starfall.Core.Anchor.AnchorRegistry Anchors => _anchors;
+
+        private readonly Starfall.Core.Decree.DecreeRegistry _decrees;
+        public Starfall.Core.Decree.DecreeRegistry Decrees => _decrees;
+
         /// <summary>
         /// 下一个 StatusInstance 的 ID（确定性递增，用于 Replay 重放）。
         /// </summary>
@@ -33,6 +39,8 @@ namespace Starfall.Core.Model
             Board = board ?? throw new ArgumentNullException(nameof(board));
             _units = new List<UnitState>(units ?? Array.Empty<UnitState>());
             _statuses = new List<Starfall.Core.Status.StatusInstance>();
+            _anchors = new Starfall.Core.Anchor.AnchorRegistry();
+            _decrees = new Starfall.Core.Decree.DecreeRegistry();
             NextStatusInstanceId = 0;
         }
 
@@ -95,6 +103,19 @@ namespace Starfall.Core.Model
                     h = MixByte(h, (byte)kv.Value);
                 }
 
+                // 6.5. anchors: 按 ZoneId 升序；每个 zone 的顶点按 (Y,X) 升序（GridPos.CompareTo 已在 AnchorZone 构造函数中规范化）
+                h = MixByte(h, (byte)_anchors.ZonesInOrder.Count);
+                foreach (var z in _anchors.ZonesInOrder)
+                {
+                    h = MixInt32(h, z.ZoneId);
+                    h = MixByte(h, (byte)z.Vertices.Count);
+                    foreach (var v in z.Vertices)
+                    {
+                        h = MixByte(h, (byte)v.X);
+                        h = MixByte(h, (byte)v.Y);
+                    }
+                }
+
                 // 7. statuses: 按 (Kind, RemainingTurns, InstanceId) 升序（ADR-0001 §Decision 4）
                 h = MixByte(h, (byte)_statuses.Count);
                 var sortedStatuses = _statuses.OrderBy(s => s, Starfall.Core.Status.StatusInstanceComparer.Instance);
@@ -105,8 +126,15 @@ namespace Starfall.Core.Model
                     h = MixInt32(h, s.InstanceId);
                 }
 
-                // 8. pendingDecrees: 本任务暂未实现，预留空位（byte count=0）
-                h = MixByte(h, 0);
+                // 8. decrees: 按 DecreeId 升序
+                h = MixByte(h, (byte)_decrees.DecreesInOrder.Count);
+                foreach (var d in _decrees.DecreesInOrder)
+                {
+                    h = MixByte(h, (byte)d.Kind);
+                    h = MixInt32(h, d.TargetZoneId);
+                    h = MixInt32(h, d.RemainingTurns);
+                    h = MixByte(h, (byte)d.IssuingPlayer);
+                }
 
                 return h;
             }
