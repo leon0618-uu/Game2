@@ -1879,3 +1879,104 @@ Push:     不 Push / 不合并 / 不开始 Task 02
   3. gameplay / ui-tools / qa 联合在 `agent/02-project-skeleton` 分支协同
   4. Task 02 启动后用 Package Manager UI 验证 URP 17.5.0 × 6000.5.3f1 补丁级配套（§G-E）
   5. Task 09 修整期对未使用 4 项 Packages 作最终清理裁决（§I-C）
+---
+
+## Task 02 Phase D 证据（qa 实测，2026-07-12 21:01 GMT+8）
+
+> 本节由 xingyuan-qa 在 gent/02-project-skeleton（HEAD = e56e21a）上执行两次真实 Unity 进程调用后追加。所有数字均来自 Unity 实际日志，未做任何"为了通过而改述"。
+
+### Task 02 Phase D.1 — asmdef 依赖方向核对
+
+| asmdef | references (期望 → 实际) | noEngineReferences (期望 → 实际) | 状态 |
+|---|---|---|---|
+| Starfall.Core.asmdef | [] → [] | 	rue → 	rue | ✅ PASS |
+| Starfall.Data.asmdef | ["Starfall.Core"] → ["Starfall.Core"] | alse → alse | ✅ PASS |
+| Starfall.Unity.asmdef | ["Starfall.Core","Starfall.Data"] → ["Starfall.Core","Starfall.Data"] | alse → alse | ✅ PASS |
+| Starfall.Tests.EditMode.asmdef | 含 Starfall.Core + UnityEngine.TestRunner + UnityEditor.TestRunner → 三者均在 | alse → alse | ✅ PASS |
+| Starfall.Tests.PlayMode.asmdef | 含 Starfall.Core + UnityEngine.TestRunner + **不含** UnityEditor.TestRunner → 实际一致 | alse → alse | ✅ PASS |
+
+**核对方法：** Get-Content 直接读取 5 个 asmdef JSON 文本，逐字段比对。
+
+### Task 02 Phase D.2 — Unity BatchMode 编译基线（第一次 Unity 进程调用）
+
+- **命令（完整）：**
+  `
+  & "C:\Program Files\Unity\Hub\Editor\6000.5.3f1\Editor\Unity.exe" -batchmode -nographics -quit -projectPath "D:\AI-Worktrees\Xingyuan\qa" -logFile "D:\AI-Worktrees\Xingyuan\qa\Logs\task02-compile.log" -buildTarget StandaloneWindows64
+  `
+- **退出码：**  （来自日志末行：Exiting without the bug reporter. Application will terminate with return code 0）
+- **日志路径：** D:\AI-Worktrees\Xingyuan\qa\Logs\task02-compile.log
+- **日志大小：** 39,754 bytes（461 行）
+- **总耗时：** 约 **13 秒**（进程文件 mtime：20:58:52 → 20:59:05）
+- **CompileError / Compilation failed / error CS 出现次数：**  
+- **warning CS 出现次数：**  
+- **5 个 Starfall.\* DLL 生成状态：**
+
+  | DLL | 期望 | 实际 | 原因 |
+  |---|---|---|---|
+  | Starfall.Core.dll | 存在 | ❌ 不存在 | asmdef 内无 .cs 源文件，Unity 日志显式声明："will not be compiled, because it has no scripts associated with it" |
+  | Starfall.Data.dll | 存在 | ❌ 不存在 | 同上，asmdef 内无 .cs 源文件 |
+  | Starfall.Unity.dll | 存在 | ❌ 不存在 | 同上，asmdef 内无 .cs 源文件 |
+  | Starfall.Tests.EditMode.dll | 存在 | ✅ 存在（**8192 B**） | 含 CoreDependencyGuardTests.cs，唯一产出实际 DLL 的 asmdef |
+  | Starfall.Tests.PlayMode.dll | 存在 | ❌ 不存在 | asmdef 内无 .cs 源文件 |
+
+- **Library/ScriptAssemblies/ DLL 总数：** 71（含 Unity 内置 package DLL + Assembly-CSharp + 1 个 Starfall DLL）
+- **Assembly-CSharp.dll 生成状态：** 存在（4608 B），含 Unity 默认空程序集，**符合预期**（业务代码已迁出 Assembly-CSharp，但 Unity 总会生成一个默认 Assembly-CSharp）
+- **Asset import 时间：** AssetDatabase Refresh Start（行 156）→ AssetDatabase Refresh End（行 435），占日志主体
+- **退出原因：** Exiting batchmode successfully now! + Application will terminate with return code 0
+
+**结论：** un-and-pass（编译 0 错 0 警 + 退出码 0 + asmdef 依赖方向正确 + Starfall.Tests.EditMode.dll 干净产出）。**5 DLL 全产出**这一原始期望在此 skeleton 阶段不可达：4 个业务 asmdef（Core/Data/Unity/Tests.PlayMode）尚未包含任何 .cs 源文件，Unity 明确跳过它们 — 这是 Phase B 的设计状态，不是错误。
+
+### Task 02 Phase D.3 — Unity EditMode 测试运行（第二次 Unity 进程调用）
+
+- **命令（完整）：**
+  `
+  & "C:\Program Files\Unity\Hub\Editor\6000.5.3f1\Editor\Unity.exe" -batchmode -nographics -projectPath "D:\AI-Worktrees\Xingyuan\qa" -runTests -testPlatform editmode -testResults "D:\AI-Worktrees\Xingyuan\qa\Logs\task02-editmode-results.xml" -logFile "D:\AI-Worktrees\Xingyuan\qa\Logs\task02-editmode-run.log"
+  `
+- **退出码：** 2（来自日志：Test run completed. Exiting with code 2 (Failed). One or more tests failed.）
+- **testResults.xml 路径：** D:\AI-Worktrees\Xingyuan\qa\Logs\task02-editmode-results.xml（7737 bytes）
+- **run 日志路径：** D:\AI-Worktrees\Xingyuan\qa\Logs\task02-editmode-run.log（37842 bytes）
+- **总耗时：** 约 **12 秒**（21:00:55 → 21:01:07）
+- **test-run 元素属性：**
+  - 	otal=4 passed=1 ailed=3 inconclusive=0 skipped=0 esult="Failed(Child)"
+  - start-time="2026-07-12 13:01:04Z" end-time="2026-07-12 13:01:04Z" duration="0.0368528"
+  - engine-version="3.5.0.0"（NUnit 版本）
+
+- **test-case 详细结果：**
+
+  | # | 测试名 | 期望 | 实际 | 耗时 | 失败原因 |
+  |---|---|---|---|---|---|
+  | 1 | Core_Asmdef_DoesNotReferenceUnity | passed | ✅ **Passed** | 9.7ms | — |
+  | 2 | Core_NoUnityAssemblyRefs | passed | ❌ **Failed** | 0.8ms | Starfall.Core assembly not loaded — Expected: not null — But was: null（行 43） |
+  | 3 | Core_NoMonoBehaviourSubclasses | passed | ❌ **Failed** | 7.0ms | 同上（行 58） |
+  | 4 | Core_NoScriptableObjectSubclasses | passed | ❌ **Failed** | 0.9ms | 同上（行 71） |
+
+- **失败 stack trace（如有）：**
+  `
+  at Starfall.Tests.EditMode.CoreDependencyGuardTests.Core_NoMonoBehaviourSubclasses () [0x00005] in D:\AI-Worktrees\Xingyuan\qa\Assets\Starfall\Tests\EditMode\CoreDependencyGuardTests.cs:58
+  at Starfall.Tests.EditMode.CoreDependencyGuardTests.Core_NoScriptableObjectSubclasses () [0x00005] in D:\AI-Worktrees\Xingyuan\qa\Assets\Starfall\Tests\EditMode\CoreDependencyGuardTests.cs:71
+  at Starfall.Tests.EditMode.CoreDependencyGuardTests.Core_NoUnityAssemblyRefs () [0x00005] in D:\AI-Worktrees\Xingyuan\qa\Assets\Starfall\Tests\EditMode\CoreDependencyGuardTests.cs:43
+  `
+
+- **失败根因：** 3 个失败测试均通过 AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(a => a.GetName().Name == "Starfall.Core") 反射查找 Starfall.Core 程序集，断言"必须找到"。但 Phase B 阶段 Core/Data/Unity 三个 asmdef 下**没有写入任何 .cs 源文件**，所以 Unity 不会生成 Starfall.Core.dll，运行时找不到该程序集，断言失败。这是 **skeleton 阶段预期行为**暴露给守卫测试的副作用 — 不是 Unity 配置错，不是 asmdef 错，而是测试代码预设了"Core 已有代码"的先决条件。
+
+### Task 02 Phase D.4 — QA Gate 自检
+
+- **编译基线：** un-and-pass（0 错 0 警 + 退出码 0）
+- **EditMode 测试：** 1 passed / 3 failed / 0 skipped（**部分失败**）
+- **Core 守卫：** 1/4 项通过（仅 Test 1 通过 — 验证 asmdef 文本 + noEngineReferences 标志）
+- **整体 Gate：** **CONDITIONAL PASS** — 编译干净、asmdef 依赖方向正确、Test 1 通过；剩余 3 项失败是 skeleton 阶段的"无源文件导致程序集不存在"副作用，不是 Unity 或 asmdef 配置错误。
+
+### Task 02 Phase D.5 — 推荐后续处置（**需 Lead 决策**）
+
+1. **由 architect 或 gameplay 在 Starfall.Core/ 下写入最小占位源文件**（例如 AssemblyMarker.cs 包含 
+amespace Starfall.Core; internal static class AssemblyMarker { }），强制 Unity 编译 Starfall.Core.dll。这将使 4 项守卫全部生效。
+2. **或将守卫测试改为"找不到程序集即视为通过（PASS）"** — 但这会降低守卫强度，不推荐。
+3. **当前 Phase D 测试结果（3 failed）必须如实告知用户**，不得宣称"测试通过"。本次提交保留审计 doc 中的失败记录。
+
+### Task 02 Phase D.6 — 写操作合规自检
+
+- **D5 自检：** git status --short 仅 18 个 ?? 的 .meta 文件（Unity 自动生成、gitignored by *.meta 不在 .gitignore — 但本任务规则禁止 commit .cs/.asmdef/.asset，且明确禁止 commit 除 audit doc 外的任何文件，故 .meta 全部留作 untracked）；git diff --stat HEAD 为空（HEAD 未被修改）。
+- **gitignore 检查：** Library/ Logs/ UserSettings/ 全部覆盖（.gitignore L1/L6/L7）；Temp/ 不在 .gitignore（未实际产生）。
+- **唯一允许的写操作：** 仅追加本节到 Docs/OPENCLAW_REPOSITORY_AUDIT.md，后续 git add + git commit 仅此文件。
+- **未修改：** Assets/Starfall/、ProjectSettings/、Packages/manifest.json、.agents/skills/、AGENTS.md。
+- **未执行：** git push / PR / merge / 安装 Package / 修改 Unity 版本。
