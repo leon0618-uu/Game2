@@ -865,6 +865,243 @@ Gate（依据本 Brief 6.3）:
 
 ---
 
+## Section 7 — 战斗代码只读审计（gameplay 出具，Lead 接管）
+
+> **作者**：`xingyuan-gameplay`（`D:\AI-Worktrees\Xingyuan\gameplay`，原 Phase C-2 子会话运行 2m14s 后中断）
+> **接管**：`xingyuan-lead` 于 2026-07-12 19:09 GMT+8 从 gameplay worktree 未提交修改中恢复 Section 7 草稿（244 行），重写为只读追加，避免重复扫描。Section 7 内容、取证命令与结论均来自 gameplay 原稿，Lead 仅做格式归一与提交落地。
+> **审计模式**：只读（read-only）；本节为 Phase C-2 唯一交付物
+
+### 7.1 审计范围与方法
+
+**任务来源**：用户 2026-07-12 18:51 GMT+8 指令——在 Task 02 启动前，由 gameplay 侧对战斗代码做 8 类只读扫描，识别「业务代码 vs 模板代码」，不得修改任何文件（除本审计 doc 可追加 Section 7）。
+
+**审计维度（8 类必查 + 4 类附加）**：
+
+| 类别 | 期望实现位置（依 `Docs/02 / Docs/03`） |
+|---|---|
+| 1. 战斗状态 | `Starfall.Core/Model/BattleState.cs` / `BoardState.cs` / `TileState.cs` / `UnitState.cs`（Task 03+） |
+| 2. Command | `Starfall.Core/Commands/ICommand.cs` / `CommandResult.cs` / `MoveCommand.cs` 等（Task 05+） |
+| 3. Resolver | `Starfall.Core/Combat/DamageResolver.cs` 等（Task 06+） |
+| 4. 路径 | `Starfall.Core/Pathfinding/Pathfinder.cs` 等（Task 04+） |
+| 5. 攻击 | `Starfall.Core/Combat/Attack*.cs` / `Damage*.cs`（Task 06+） |
+| 6. 状态 | `Starfall.Core/Status/Status*.cs` / `Effect*.cs` / `Buff*.cs`（Task 07+） |
+| 7. Replay | `Starfall.Core/Replay/Replay*.cs` / `BattleRecord.cs`（Task 12） |
+| 8. Undo | `Starfall.Core/Commands/Undo*.cs` / `Revert*.cs` / `Rollback*.cs`（Task 05+） |
+
+**取证方法**（全只读，零写入）：
+
+- `git grep -nE "<pattern>" Assets/ Packages/` —— 8 类模式匹配
+- `Get-ChildItem -Recurse -Directory -Filter Starfall*` —— Starfall 目录结构
+- `Test-Path Assets/Scripts` —— 项目脚本目录是否存在
+- `Get-ChildItem Assets/TutorialInfo -Recurse -File -Include *.cs` —— 模板脚手架清点
+- `Get-ChildItem Packages -Recurse -File -Include *.cs` —— 包内代码抽样（排除 `com.unity.*`）
+- `Get-Content Assets/TutorialInfo/Scripts/Readme.cs`（前 10 行）—— 模板 vs 业务判别
+
+### 7.2 8 类审计结果矩阵
+
+| # | 类别 | grep pattern | grep 结果 | 业务代码 | 模板残留 | 结论 |
+|---|---|---|---|---|---|---|
+| 1 | 战斗状态 | `class\s+(BattleState\|BoardState\|TileState\|UnitState)` | **0 匹配** | 否 | 否 | 0 实现，符合 Task 01 基线（Task 03+ 才开始） |
+| 2 | Command | `(class\|interface)\s+(ICommand\|CommandResult\|\w*Command)\b` | **0 匹配** | 否 | 否 | 0 实现，符合 Task 01 基线（Task 05+ 才开始） |
+| 3 | Resolver | `class\s+\w*Resolver\b` | **0 匹配** | 否 | 否 | 0 实现，符合 Task 01 基线（Task 06+ 才开始） |
+| 4 | 路径 | `(class\|method)\s+(\w*Path\w*\|\w*BFS\w*\|\w*AStar\w*)` | **0 匹配** | 否 | 否 | 0 实现，符合 Task 01 基线（Task 04+ 才开始） |
+| 5 | 攻击 | `(class\|method)\s+(\w*Attack\w*\|\w*Damage\w*)` | **0 匹配** | 否 | 否 | 0 实现，符合 Task 01 基线（Task 06+ 才开始） |
+| 6 | 状态 | `(class\|enum)\s+(\w*Status\w*\|\w*Effect\w*\|\w*Buff\w*)` | **0 匹配** | 否 | 否 | 0 实现，符合 Task 01 基线（Task 07+ 才开始） |
+| 7 | Replay | `(class\|method)\s+(\w*Replay\w*\|\w*History\w*\|\w*Snapshot\w*)` | **0 匹配** | 否 | 否 | 0 实现，符合 Task 01 基线（Task 12 才开始） |
+| 8 | Undo | `(class\|method)\s+(\w*Undo\w*\|\w*Revert\w*\|\w*Rollback\w*)` | **0 匹配** | 否 | 否 | 0 实现，符合 Task 01 基线（Task 05+ 才开始） |
+
+**取证摘要**：
+
+```powershell
+git grep -nE "class\s+(BattleState|BoardState|TileState|UnitState)" Assets/ Packages/   # exit=1 → 0 匹配
+git grep -nE "(class|interface)\s+(ICommand|CommandResult|\w*Command)\b" Assets/ Packages/ # exit=1 → 0 匹配
+git grep -nE "class\s+\w*Resolver\b" Assets/ Packages/                                  # exit=1 → 0 匹配
+git grep -nE "(class|method)\s+(\w*Path\w*|\w*BFS\w*|\w*AStar\w*)" Assets/ Packages/    # exit=1 → 0 匹配
+git grep -nE "(class|method)\s+(\w*Attack\w*|\w*Damage\w*)" Assets/ Packages/          # exit=1 → 0 匹配
+git grep -nE "(class|enum)\s+(\w*Status\w*|\w*Effect\w*|\w*Buff\w*)" Assets/ Packages/  # exit=1 → 0 匹配
+git grep -nE "(class|method)\s+(\w*Replay\w*|\w*History\w*|\w*Snapshot\w*)" Assets/ Packages/ # exit=1 → 0 匹配
+git grep -nE "(class|method)\s+(\w*Undo\w*|\w*Revert\w*|\w*Rollback\w*)" Assets/ Packages/   # exit=1 → 0 匹配
+```
+
+> 注：`exit=1`（PowerShell 表现 `NativeCommandError`）= `git grep` 无匹配的标准返回码。**全部 8 类零业务命中**。
+
+**结论**：业务代码实现为零完全符合 Task 01 基线（Task 01 仅做审计，不写代码）。Task 03+ 才会按 `Docs/04_Roadmap_and_Milestones.md` 顺序落地 8 类实现。
+
+### 7.3 Starfall.* 目录结构
+
+```powershell
+Get-ChildItem -Recurse -Directory -Filter Starfall* -ErrorAction SilentlyContinue
+# → 0 条匹配
+```
+
+**取证**：
+
+- `Starfall.*` 目录数：**0**
+- 与 §2.1（`Get-ChildItem -Recurse -Filter *.asmdef` = 0 条）一致
+- 与 §5.5（无 Starfall.* 程序集）一致
+- 与 §6.1(c)（G-A asmdef 缺失 = Planned Gap — Task 02）一致
+
+**结论**：当前仓库零 Starfall 命名空间落地，与 Task 02 / Task 03+ 主交付计划完全一致，无任何越界实现。
+
+### 7.4 Assets/Scripts/ 现状
+
+```powershell
+Test-Path Assets/Scripts
+# → False
+```
+
+**取证**：
+
+- `Assets/Scripts/`：**不存在**
+- 实际项目脚本目录树：
+  - `Assets/Scenes/`（仅含 `SampleScene.unity` 模板）
+  - `Assets/Settings/`（URP / Graphics 配置）
+  - `Assets/TutorialInfo/`（URP Blank 模板自带 `Readme` + `Icons/`）
+
+**结论**：未创建 `Assets/Scripts/` 是预期行为——Task 02 由 architect 在 `Starfall.*` asmdef 落地后才会衍生该目录；提前建空目录属越界。
+
+### 7.5 模板代码识别
+
+**取证**：
+
+| 文件路径 | 大小 | 前 10 行摘要 | 属性 |
+|---|---|---|---|
+| `Assets/TutorialInfo/Scripts/Readme.cs` | 302 B | `public class Readme : ScriptableObject { public Texture2D icon; public string title; public Section[] sections; public bool loadedLayout; ... }` | **模板 / URP Blank 自带** |
+| `Assets/TutorialInfo/Scripts/Editor/ReadmeEditor.cs` | 6,677 B | `[CustomEditor(typeof(Readme))] [InitializeOnLoad] using UnityEditor; ...` | **模板 / URP Blank 自带** |
+
+**判别依据**：
+
+- 命名空间缺失（非 `Starfall.*`）
+- 类型为通用 `ScriptableObject` / 通用 `CustomEditor` 包装
+- 仅 `Assets/TutorialInfo/` 路径下（URP Blank 模板保留目录）
+- 与 §2.1、§5.7 N-3、已知偏差 G-F 一致
+- **未触发任何编译错误**（§5.7 BatchMode：Assembly-CSharp.dll 4,608 bytes + Editor.dll 10,240 bytes 编译通过）
+
+**结论**：模板代码无业务越界。**处置建议**：列入 Planned Gap — Task 02（G-F 模板清理），由 architect 或 ui-tools 在 Task 02 内删除 `Assets/TutorialInfo/` 整目录；属 `docs/IMPLEMENTATION_STATUS.md` 待清理项。
+
+### 7.6 Packages/ 内游戏代码抽样
+
+**取证 1 — 排除 Unity 自带包后的游戏相关 .cs**：
+
+```powershell
+Get-ChildItem Packages -Recurse -File -Include *.cs -ErrorAction SilentlyContinue |
+  Where-Object { $_.FullName -notlike "*com.unity*" } |
+  Select-Object -First 10
+# → 0 条匹配
+```
+
+**取证 2 — Packages/ 目录实际内容**：
+
+- `Packages/manifest.json`（Unity 依赖清单，§1.2 / §3.1 已审）
+- `Packages/packages-lock.json`（已解析版本快照）
+- **`Packages/com.unity.*` 不存在本地目录**——Unity 解析后的包源码缓存于 `Library/PackageCache/`（gitignored，§5.7 验证），不属项目业务代码范畴
+
+**结论**：
+
+- Packages/ 内**0 个游戏相关 .cs**（排除 `com.unity.*` 标准包）
+- 项目**未引入**任何第三方源码包（无 OpenUPM / Git URL 直引 / 自定义 tarball）
+- 与 §3.1（依赖表仅含 19 项官方包）一致
+- 与 §6.1(f)（I-C 候选依赖清理是另一维度，移除而非新增）一致
+
+### 7.7 gameplay 视角的「Task 02 进入准备度」
+
+**业务代码 0 实现 → 预期**
+
+- 8 类审计（§7.2）全部零命中，符合 Task 01「不写代码、只审计」契约
+- 与 §6.1(c)/(d) Planned Gap 列表对齐——Task 02 才交付 asmdef + ADR-0001/0002，Task 03+ 才落地业务类型
+
+**模板代码无业务越界 → 预期**
+
+- `Assets/TutorialInfo/Scripts/*.cs`（2 个文件）均属 URP Blank 模板保留
+- 与 §5.7 N-3 一致；未触发编译错误；可于 Task 02 内由 architect/ui-tools 整目录删除
+
+**确定性风险（详见 `xingyuan-determinism-review` SKILL）**：
+
+依 `.agents/skills/xingyuan-determinism-review/SKILL.md` 8 项审查口径（已在 Agent 间连通性测试中汇报）：
+
+| # | 审查项 | 当前状态 | 后续 Task 落实点 |
+|---|---|---|---|
+| D-1 | 无序集合迭代影响结果 | **N/A**（无业务代码） | Task 03（BattleState 字段集合排序）/ Task 05（Command 顺序） |
+| D-2 | 随机值 / `UnityEngine.Random` | **N/A**（无业务代码） | Task 03 内由 ADR-0001 规定确定性 RNG 路径 |
+| D-3 | 当前时间 / `DateTime.Now` / `Time.realtimeSinceStartup` | **N/A**（无业务代码） | Task 03+ 内由 Core 守卫测试拦截 |
+| D-4 | GUID 生成 / `System.Guid.NewGuid()` | **N/A**（无业务代码） | 同上 |
+| D-5 | 不稳定哈希（`object.GetHashCode` / `string.GetHashCode`） | **N/A**（无业务代码） | Task 04（Clone/Compare/Hash）内由 ADR-0001 规定 FNV-1a 64 位 |
+| D-6 | 缺 Tie-break / 浮点几何比较 | **N/A**（无业务代码） | Task 04 内由 pathfinder 测试守住 |
+| D-7 | Replay 依赖 Unity 对象 / InstanceID | **N/A**（无业务代码） | Task 12 内 BattleRecord 必须纯数据 |
+| D-8 | 网格排序非「先 y 后 x」/ 寻路邻居非「下左上右」 | **N/A**（无业务代码） | Task 03 / Task 04 内由 Core 守卫测试 + EditMode 测试锁定 |
+
+**后续 Task 落地路径（gameplay 主责范围）**：
+
+- Task 03（Core 基础状态）— `BattleState` / `GridPos` / `BoardState` / `UnitState` / `TileState` 类型；FNV-1a 64 位哈希字段顺序
+- Task 04（Clone/Compare/Hash）— `BattleStateCloner` / `BattleStateComparer`；寻路稳定排序
+- Task 05（Command 框架）— `ICommand` / `CommandResult` / `MoveCommand` / `AttackCommand` / Undo / Revert
+- Task 06（战斗规则）— `DamageResolver` / 攻击伤害公式
+- Task 07（状态系统）— `Status` / `Effect` / `Buff` 类型 + Tick 顺序
+- Task 12（Replay）— `BattleRecord` / 纯数据快照
+
+**Task 03 / Task 04 / Task 05 落地的前置依赖**（与 Task 02 衔接）：
+
+- 5 个 `Starfall.*` asmdef 已建（Task 02 G-A）
+- ADR-0001（数据模型与哈希契约）已起草（Task 02 G-B）
+- ADR-0002（Presenter 同步契约）已起草（Task 02 G-B）
+- Core 依赖守卫测试已建（Task 02 G-C）
+
+### 7.8 gameplay 给 Lead 的 READINESS 视角
+
+**Task 02 主责范围**：
+
+- Task 02 不由 gameplay 主责（仅 `architect` + `ui-tools` + `qa`）
+- gameplay 在 Task 02 期间处于「待命」状态，仅当 architect 创建 5 个 `Starfall.*` asmdef 后由 gameplay 协同写 `Tests.EditMode` 中的「Core 依赖守卫」测试用例之一（如：`禁止 using UnityEngine`、`禁止 using UnityEditor`、`禁止业务型 MonoBehaviour`、`禁止 UnityEngine.Random`）
+
+**Task 02 完成后，Task 03 即可启动，需预先确认**：
+
+- [ ] **ADR-0001**（数据模型与哈希契约）已在 Task 02 内由 architect 完成；含：
+  - `BattleState` / `GridPos` / `BoardState` / `UnitState` / `TileState` 字段定义
+  - FNV-1a 64 位哈希字段顺序（必须固化在 ADR 内，防止 Task 04 实现时口径漂移）
+  - `BattleStateCloner` / `BattleStateComparer` 接口签名
+- [ ] **5 个 asmdef**（尤其 `Starfall.Core` / `Starfall.Tests.EditMode`）就位
+  - `Starfall.Core` 必须依赖 0 项 Unity 程序集（§10.1 Core 硬约束）
+  - `Starfall.Tests.EditMode` 须引用 `Starfall.Core` + `UnityEngine.TestRunner` + `UnityEditor.TestRunner`
+
+**gameplay 不需要用户额外裁决**：本节仅审计、汇报与列依赖；如出现下列情况则**需** Lead 介入协调：
+
+| 触发条件 | 介入动作 |
+|---|---|
+| Task 02 后 `Starfall.Core` asmdef 引用了 Unity 程序集 | gameplay 报告 Lead，由 architect 修正 |
+| Task 02 后 ADR-0001 哈希顺序未定 | gameplay 不启动 Task 04，先反馈 Lead |
+| 用户裁决 U-A（Unity 版本）后 BatchMode 需重跑 | gameplay 配合 qa 重跑并比对状态哈希 |
+| Task 02 期间发现 §7.2 / §7.5 / §7.6 取证外的越界业务代码 | gameplay 立即报告 Lead，停止 Task 03 启动 |
+
+**gameplay READINESS 判定**：
+
+- ✅ **Task 02 启动无需 gameplay 介入**
+- ✅ **Task 03 启动前仅需 7.8 上述 2 项预确认**
+- ✅ **业务代码 0 命中、模板无越界、依赖无游戏包注入** = Task 02 启动条件（业务代码维度）全部满足
+
+### 7.9 本节禁项自检（Phase C-2 gameplay，未执行任何）
+
+- ❌ 修改 `Assets/` 下任何文件（含模板 `.cs` / `.asset` / `.unity` / `.prefab`）
+- ❌ 修改 `ProjectSettings/*.asset`
+- ❌ 修改 `Packages/manifest.json`
+- ❌ 创建任何 `.cs` 业务代码
+- ❌ 创建任何 `.asmdef`
+- ❌ 修改 `.agents/skills/` 下任何 `SKILL.md`
+- ❌ 安装新 Package / 修改依赖
+- ❌ 删除文件
+- ❌ `git push` / 创建 PR / 合并 / 发布
+- ❌ 运行 Unity BatchMode（qa 已跑过，重复无意义）
+- ❌ 跨 worktree 写入（仅在 gameplay worktree 内操作）
+
+**唯一允许的写操作**（实际由 Lead 在 main worktree 完成提交）：
+
+- ✅ `git fetch . agent/01-repository-audit:agent/01-repository-audit`（仅本 worktree 内同步远端引用）
+- ✅ `git checkout agent/01-repository-audit`（Lead 在 main worktree 切换）
+- ✅ `edit Docs/OPENCLAW_REPOSITORY_AUDIT.md`（Lead 追加 Section 7）
+- ✅ `git add Docs/OPENCLAW_REPOSITORY_AUDIT.md` + `git commit`（Lead 落地）
+- ✅ `git checkout agent/gameplay-bootstrap`（gameplay 在自己 worktree 切回 bootstrap，丢弃未提交改动）
+
+---
+
 ## 已知偏差与建议（QA Phase C-1 重写）
 
 > **重分类口径**（用户裁决 2026-07-12 18:51 GMT+8，已最终生效）：
