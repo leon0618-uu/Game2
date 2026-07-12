@@ -1102,6 +1102,296 @@ Get-ChildItem Packages -Recurse -File -Include *.cs -ErrorAction SilentlyContinu
 
 ---
 
+## Section 8 — Unity 资产只读审计（ui-tools 出具）
+
+> **作者**：`xingyuan-ui-tools`（`D:\AI-Worktrees\Xingyuan\ui-tools`）
+> **模式**：只读（read-only）；Phase C-3 唯一交付物
+> **依据**：用户 2026-07-12 18:51 GMT+8 指令 — 仅审查 Scenes / URP / InputSystem / Presenter / UI / Data / Definition 现状；不修改 Unity 配置或 Packages；不修改任何文件（除本审计 doc）
+> **配合**：本节为 Section 1–7 的 ui-tools 视角补充（architect 已审 Section 3 资产目录、qa 已审 Section 5.7 BatchMode 编译、gameplay 已审 Section 7 战斗代码）；本节专注于「业务层资产是否已就位」与「Task 02 / Task 15+ 启动准备度」
+
+### 8.1 审计范围与方法
+
+**范围**：8 类 Unity 业务相关资产 + 3 类辅助审计
+
+```text
+1. Scenes（场景）
+2. URP 配置（Universal Render Pipeline）
+3. Input System 资源
+4. Presenter（BoardPresenter / UnitPresenter / BattleHud）
+5. UI（uGUI Canvas / EventSystem / Image / Text）
+6. Data（Definition / JSON / ScriptableObject 数据容器）
+7. Definition（业务定义文件）
+8. SampleScene 与模板资源整体清点
+
+附 9.  Assets/Scripts/ 是否存在
+附 10. Library/ 残留与 .gitignore 覆盖
+附 11. ProjectSettings/ 完整性
+```
+
+**方法**：仅 `Get-ChildItem` / `Get-Content` / `Select-String` / `git grep` / `Test-Path` / `git check-ignore` / `git ls-files`；不调用 `New-Item` / `Set-Content` / `Remove-Item`；不调用 Unity；不修改任何 Unity 资产、ProjectSettings、Packages、.meta、.gitignore。
+
+**验证原则**：
+
+- 模板资产识别：以 Unity 6.5 LTS + URP Blank 模板基线为参照；TutorialInfo/、URP Blank Settings/、SampleScene.unity、InputSystem_Actions.inputactions、Readme.asset 均属模板自带
+- 业务资产识别：`BoardPresenter` / `UnitPresenter` / `BattleHud` / `MoveDefinition` / `UnitDefinition` / `DecreeDefinition` / `StatusDefinition` / `Canvas` / `Panel` / `HudButton` / `DataAsset` / `ConfigAsset` 等关键词在 Assets/ 内 0 匹配即视为业务未实现
+- 「未实现」= 符合 Task 01「零玩法增量」预期；下一阶段 Task 02 / Task 13+ 按 Docs/04 Roadmap 推进
+
+### 8.2 8 类审计结果矩阵
+
+| # | 类别 | 路径 / 枚举命令 | 枚举结果 | 模板 | 业务 | 结论 |
+|---|---|---|---|---|---|---|
+| 1 | Scenes | `Get-ChildItem Assets/Scenes -Recurse -File -Include *.unity` | 1（SampleScene.unity，11413 字节） | 是 | 否 | 仅模板场景；含 Main Camera + Directional Light + Global Volume；无业务场景；Task 15 新增战斗场景前无需改动 |
+| 2 | URP | `Get-ChildItem Assets/Settings -Recurse -File` | 8 个 .asset（DefaultVolumeProfile + Mobile_Renderer + Mobile_RPAsset + PC_Renderer + PC_RPAsset + SampleSceneProfile + UniversalRenderPipelineGlobalSettings + .meta 8 套） | 是 | 否 | URP 17.5.0 模板全套；GraphicsSettings.m_CustomRenderPipeline → PC_RPAsset (guid 4b83569d67af61e458304325a23e5dfd)；PC_RPAsset.m_RenderScale=1，Mobile_RPAsset.m_RenderScale=0.8；无业务 RendererFeature |
+| 3 | Input System | `Get-ChildItem Assets -Recurse -File -Include *.inputactions` | 1（InputSystem_Actions.inputactions，41005 字节） | 是 | 否 | 模板默认 Player 地图（Move/Look/Attack/Interact/Crouch/Jump/Previous/Next/Sprint）+ UI 地图（Navigate/Submit/Cancel/Point/Click/RightClick/MiddleClick/ScrollWheel/TrackedDevicePosition...）；activeInputHandler=1（新 Input System 独占）；Task 05+ 需新增 Move/PhaseFlip/Attack/DeployDecree 动作映射 |
+| 4 | Presenter | `git grep -nE "class\s+(\w*Presenter\b\|\w*View\b\|\w*Hud\b\|\w*BattleHud\b)" Assets/` | 0 匹配 | — | — | 业务未实现；Test-Path Assets/Scripts/Presenter = False；Test-Path Assets/Scripts = False；Task 16 Planned Gap（详见 8.7） |
+| 5 | UI | `git grep -nE "class\s+(\w*Canvas\b\|\w*Panel\b\|\w*HudButton\b)" Assets/` | 0 匹配 | — | — | 业务未实现；Test-Path Assets/Scripts/UI = False；uGUI 2.5.0 包已就绪（Packages/manifest.json line 12），但未实例化 Canvas/Panel/Button；Task 18 Planned Gap |
+| 6 | Data | `Get-ChildItem Assets -Recurse -File -Include *.json` + `git grep -nE "class\s+(\w*Definition\b\|\w*DataAsset\b\|\w*ConfigAsset\b)" Assets/` | 0 .json + 0 匹配 | — | — | 业务未实现；Test-Path Assets/Data = False；Test-Path Assets/StreamingAssets = False；模板自带 Readme.asset 是 ScriptableObject（class `Readme : ScriptableObject`）但属性属 I-A 信息项；Task 13/14 Planned Gap |
+| 7 | Definition | `git grep -nE "(MoveDefinition\|UnitDefinition\|DecreeDefinition\|StatusDefinition)" Assets/ Docs/` | 0 匹配 in Assets/；3 引用 in Docs/03（line 201 / 465 / 492） | — | — | Docs/03 数据契约已写明 4 类 Definition 字段；Assets/ 内 0 个；Task 13 启动后由 ui-tools + architect 协同定义 |
+| 8 | SampleScene + 全 Assets 清点 | `Get-ChildItem Assets -Recurse -File \| Group-Object Extension` | 32 个文件 = .asset×8 + .cs×2 + .inputactions×1 + .meta×20 + .png×1 + .unity×1 + .wlt×1；无 .prefab / 无 .controller / 无 .mixer / 无 .spriteatlas | 是 | 否 | 全模板；零业务资产；模板 TutorialInfo/ 含 Readme.cs + ReadmeEditor.cs + Readme.asset + Layout.wlt + Icons/URP.png |
+
+### 8.3 Assets/ 整体结构与文件类型分布
+
+**目录树**（取自 `Get-ChildItem Assets -Recurse -Directory`）：
+
+```text
+Assets/
+├── InputSystem_Actions.inputactions          (41005 B)
+├── Readme.asset                              (Template SO)
+├── Scenes/
+│   └── SampleScene.unity                     (11413 B)
+├── Settings/
+│   ├── DefaultVolumeProfile.asset            (23987 B)
+│   ├── Mobile_Renderer.asset                 (1713 B)
+│   ├── Mobile_RPAsset.asset                  (4672 B)
+│   ├── PC_Renderer.asset                     (3439 B)
+│   ├── PC_RPAsset.asset                      (4691 B)
+│   ├── SampleSceneProfile.asset              (3703 B)
+│   └── UniversalRenderPipelineGlobalSettings.asset (26897 B)
+└── TutorialInfo/
+    ├── Layout.wlt                            (URP Blank layout)
+    └── Scripts/
+        ├── Editor/
+        │   └── ReadmeEditor.cs               (Template editor inspector)
+        ├── Readme.cs                         (Template Readme SO)
+        └── Icons/
+            └── URP.png                       (24069 B)
+```
+
+**按扩展名分组的 Count（取证：Group-Object Extension）**：
+
+```text
+Ext           Count   TotalSize(KB)
+.asset            8          68.6    (7 URP + 1 Readme)
+.cs               2           6.8    (Readme + ReadmeEditor)
+.inputactions     1            40.0   (InputSystem_Actions)
+.meta            20           6.9    (一文件一 .meta，含空文件夹 .meta 4 个)
+.png              1           23.5   (TutorialInfo/Icons/URP.png)
+.unity            1           11.1   (SampleScene)
+.wlt              1           15.8   (TutorialInfo/Layout.wlt)
+```
+
+合计 32 个文件 / 约 172 KB（不含 .meta）。**业务资产数 = 0**。
+
+### 8.4 Library/ 残留与 .gitignore 覆盖验证
+
+**Library/ 现状**：
+
+```text
+Test-Path Library                       → False
+Test-Path Library/ScriptAssemblies      → False
+```
+
+注：本 worktree (`D:\AI-Worktrees\Xingyuan\ui-tools`) 不含 Library/；主工作区 `D:\UntiyProject\XingyuanCovenant` 在 qa Phase C-1 BatchMode 跑完后已生成 Library/，但仅存于主 worktree 且未推送到本 worktree。这是正常的 worktree 隔离行为，不构成审计差异。
+
+**.gitignore 覆盖验证**：
+
+```text
+$ git check-ignore -v Library/
+.gitignore:1:[Ll]ibrary/  Library/
+
+$ exit=0
+```
+
+**结论**：`.gitignore` line 1 以 `[Ll]ibrary/` 模式覆盖 Library/（含 `Library/` 与 `library/` 两种命名），即便主工作区生成 Library/ 也不会污染本审计分支或 git 提交。同理覆盖 Temp/、obj/、Build/、Builds/、Logs/、UserSettings/、MemoryCaptures/、Recordings/、TestResults/。
+
+### 8.5 ProjectSettings/ 完整性
+
+**所有 .asset / .txt 文件清单**（取自 `Get-ChildItem ProjectSettings -File`）：
+
+```text
+AudioManager.asset                       413 B
+ClusterInputManager.asset                114 B
+DynamicsManager.asset                  1254 B
+EditorBuildSettings.asset                371 B
+EditorSettings.asset                   1687 B
+GraphicsSettings.asset                 2957 B
+InputManager.asset                     9731 B
+MemorySettings.asset                   1192 B
+MultiplayerManager.asset                157 B
+NavMeshAreas.asset                     1308 B
+PackageManagerSettings.asset           1157 B
+Physics2DSettings.asset                2028 B
+PhysicsCoreProjectSettings2D.asset      151 B
+PresetManager.asset                     146 B
+ProjectSettings.asset                 25517 B
+ProjectVersion.txt                       83 B   ← m_EditorVersion: 6000.5.3f1
+QualitySettings.asset                 3662 B
+ShaderGraphSettings.asset               556 B
+TagManager.asset                        657 B
+TimeManager.asset                       202 B
+UnityConnectSettings.asset             1063 B
+URPProjectSettings.asset                461 B
+VersionControlSettings.asset            188 B
+VFXManager.asset                        308 B
+XRSettings.asset                        158 B
+```
+
+合计 26 个文件 / 约 56 KB。**所有 Unity 6.5 LTS 标准 ProjectSettings 文件齐全**（含 6.5 新增 MemorySettings.asset / PhysicsCoreProjectSettings2D.asset）。
+
+**关键字段取证**（`Select-String` ProjectSettings/ProjectSettings.asset）：
+
+```text
+productGUID:           db28ec0c4e884b048bda3ba517d6039c        (line 7)
+companyName:           DefaultCompany                          (line 15)  ← I-A 信息项，待改
+productName:           XingyuanCovenant                        (line 16)  ← 已设
+activeInputHandler:    1                                       (line 929) ← 新 Input System
+apiCompatibilityLevel: 6                                       (line 927) ← .NET Standard 2.1
+gcIncremental:         1                                       (line 848)
+applicationIdentifier: (空)                                   (line 171) ← I-B 信息项，待改
+overrideDefaultApplicationIdentifier: 1                       (line 180)
+AndroidMinSdkVersion:  26                                      (line 182)
+```
+
+**TagManager.asset** 现状（`Get-Content`）：
+
+```text
+tags:                []                                    ← 空（I-A 信息项）
+layers:              [Default, TransparentFX, Ignore Raycast, (空), Water, UI]
+m_SortingLayers:     [Default]
+m_RenderingLayers:   [Default, Light Layer 1..7, (空)...]
+```
+
+URP 17.5.0 模板默认；Layer 7 = UI、8 = Water；按 Docs/03 后续可加 `BattleUnit` / `PhaseAlpha` / `PhaseBeta` / `Gravity` 等。
+
+**GraphicsSettings.asset** 关键引用：
+
+```text
+m_CustomRenderPipeline: {fileID: 11400000, guid: 4b83569d67af61e458304325a23e5dfd, type: 2}
+                                              ↑ Assets/Settings/PC_RPAsset.asset.meta guid
+```
+
+→ 默认 RP 已切到 PC_RPAsset；Mobile 走独立 RPAsset（见 Category 2）。
+
+### 8.6 ui-tools 视角的「Task 02 / Task 15+ 进入准备度」
+
+**模板脚手架完整**（无需立即改动，Task 02 启动后 G-F 删除）：
+
+- ✅ `Assets/TutorialInfo/Scripts/Readme.cs`（31 行模板 Readme SO，附带 `Section[] sections` 与 `icon/title/loadedLayout`）
+- ✅ `Assets/TutorialInfo/Scripts/Editor/ReadmeEditor.cs`（Readme Inspector 自定义）
+- ✅ `Assets/Readme.asset`（YAML 序列化，含 title="URP Empty Template"）
+- ✅ `Assets/TutorialInfo/Layout.wlt`（Editor 窗口布局）
+- ✅ `Assets/TutorialInfo/Icons/URP.png`（23.5 KB）
+
+**URP 配置齐全**（GraphicsSettings → PC_RPAsset）：
+
+- ✅ `Assets/Settings/PC_RPAsset.asset`（m_RenderScale=1，m_RenderingMode=2 = Forward+）
+- ✅ `Assets/Settings/Mobile_RPAsset.asset`（m_RenderScale=0.8，m_RenderingMode=0 = Forward）
+- ✅ `Assets/Settings/PC_Renderer.asset` + `Mobile_Renderer.asset`（m_RendererFeatures=[] 空）
+- ✅ `Assets/Settings/DefaultVolumeProfile.asset`（23.6 KB，含 URP 默认 Volume）
+- ✅ `Assets/Settings/SampleSceneProfile.asset`（3.6 KB，场景专属 Volume）
+- ✅ `Assets/Settings/UniversalRenderPipelineGlobalSettings.asset`（26.2 KB，URP 全局设置）
+
+**Input System 已切新**（Task 05+ 改造映射）：
+
+- ✅ `Packages/manifest.json:7` `com.unity.inputsystem: 1.19.0`
+- ✅ `ProjectSettings/ProjectSettings.asset:929` `activeInputHandler: 1`（新 Input System 独占，旧 Input Manager 关闭）
+- ✅ `Assets/InputSystem_Actions.inputactions`（Player + UI 双地图，模板默认）
+
+**业务 Presenter / UI / Data / Definition = 0 实现（预期）**：
+
+- ❌ `Assets/Scripts/Presenter/` 不存在（Task 16 Planned Gap）
+- ❌ `Assets/Scripts/UI/` 不存在（Task 18 Planned Gap）
+- ❌ `Assets/Data/` 不存在（Task 13/14 Planned Gap）
+- ❌ `Assets/StreamingAssets/` 不存在（Task 14 Planned Gap）
+- ❌ `*.json` 业务数据 0 个（Task 14 Planned Gap）
+- ❌ `MoveDefinition` / `UnitDefinition` / `DecreeDefinition` / `StatusDefinition` 0 个（Task 13 Planned Gap）
+
+**后续 Task 主责归属（依据 Docs/04 Roadmap）**：
+
+| Task | ui-tools 主责 | 备注 |
+|------|---------------|------|
+| Task 02 工程骨架 | 协同 architect（修改 ProjectSettings 极少） | 不修改 ProjectSettings（用户单独批准除外） |
+| Task 05 Input | 主责 InputAction 资源改造 | 本 worktree 主改 |
+| Task 13 Data | 主责 Definition JSON 容器 + ScriptableObject | 与 architect 共定接口 |
+| Task 14 JSON | 主责 StreamingAssets 加载 + 校验 | 模板 json 工具就绪 |
+| Task 15 Scene | 主责战斗场景新建 | 本 worktree 新增 |
+| Task 16 Presenter | 主责 BoardPresenter / UnitPresenter / BattleHud | 模板无任何 Presenter |
+| Task 18 UI | 主责 Canvas / Panel / HudButton | uGUI 2.5.0 包就绪 |
+
+**Library/ 与 .gitignore 互洽**：BatchMode 后不会污染 git（见 8.4）。
+
+### 8.7 ui-tools 给 Lead 的 READINESS 视角
+
+**Task 02 启动后 ui-tools 待办**（用户裁决后落地）：
+
+- **G-F**：删除 `Assets/TutorialInfo/` 整目录（模板清理；2 个 .cs + 1 个 .asset + 1 个 .wlt + 1 个 .png + 5 个 .meta）—— Task 02 内触发，Task 02 G-F 标签
+- **G-G**：InputAction 资源在 Task 05+ 改造。当前 Player 地图保留 Move/Look（相机视角用），需要新增 Move（CellSelect）、PhaseFlip（Q）、Attack（确认）、DeployDecree（右键）等动作；模板动作 `Attack/Interact/Crouch/Jump/Previous/Next/Sprint` 不删，保留以避免 InputAction 资源破坏性修改（破坏 = 失 binding）
+- **I-A**：`companyName` 改为 `XingyuanCovenant`（信息项，可一并处理）
+- **I-B**：Android Bundle ID 改为 `com.xingyuan.covenant`（信息项，需用户在 Task 02 后裁决）
+- **I-C**：未使用 4 项 Packages 候选清理（`com.unity.multiplayer.center` / `com.unity.timeline` / `com.unity.visualscripting` / `com.unity.ide.rider` —— 用户裁决后处理）
+
+**Task 15 启动后 ui-tools 主责**：
+
+- 新增战斗场景 `Assets/Scenes/BattleScene.unity`（8×10 网格 + 4 玩家单位 + 撤离目标点）
+- 添加至 EditorBuildSettings（ProjectSettings/EditorBuildSettings.asset）
+- 配套 Lighting / Volume Profile 复用 PC_RPAsset + SampleSceneProfile
+
+**Task 16 / Task 18 启动后 ui-tools 主责**：
+
+- 新增 `Assets/Scripts/Presenter/`（BoardPresenter / UnitPresenter / BattleHud）
+- 新增 `Assets/Scripts/UI/`（HUDCanvas / ActionPanel / EndTurnButton / DecreeButton）
+- 新增 `Assets/Scripts/Unity/`（Bootstrap.cs / GameLifetimeScope.cs / CameraRig.cs）
+- 全部通过 `Starfall.Unity` asmdef 引用 Core + Data + UnityEngine，不引入第三方
+
+**当前 ui-tools 风险与建议**：
+
+- ⚠️ Risk-A：`Assets/Readme.asset` 关联 `TutorialInfo/Scripts/Readme.cs`；删除 TutorialInfo 时必须同步删除 Readme.asset，否则 YAML 引用悬空
+- ⚠️ Risk-B：InputAction 资源若 Task 05 一次性大改（删除模板动作），InputActionAsset 重生成会导致 binding 全丢；建议保留模板动作、新增业务动作并通过 binding group 隔离
+- ⚠️ Risk-C：`ProjectSettings/TagManager.asset` 仅 Default/Water/UI 三层（除内置 0–5），后续 BattleUnit / PhaseAlpha / PhaseBeta / Gravity 等需在 Task 15 前追加
+- ⚠️ Risk-D：`Library/` 在主 worktree 存在但本 worktree 不存在；切换 worktree 时 Unity 需重新 import（首次打开 Editor 慢 1–2 分钟，可接受）
+
+### 8.8 本节禁项自检（Phase C-3 ui-tools）
+
+```text
+- ✅ 未修改 Assets/ 下任何 .unity / .prefab / .asset / .cs / .meta / .inputactions
+- ✅ 未修改 ProjectSettings/*.asset / ProjectVersion.txt
+- ✅ 未修改 Packages/manifest.json / Packages/packages-lock.json
+- ✅ 未创建新 .cs / .asmdef / .unity / .prefab / .asset / .inputactions
+- ✅ 未修改 .agents/skills/ 任意文件
+- ✅ 未安装新 Package
+- ✅ 未删除任何文件
+- ✅ 未运行 Unity BatchMode
+- ✅ 未 Push / 未合并 / 未创建 PR / 未修改远程
+- ✅ 未修改 .gitignore
+- ✅ 唯一写操作：编辑 Docs/OPENCLAW_REPOSITORY_AUDIT.md 追加 Section 8
+```
+
+### 8.9 Section 8 与既有 Section 的关系
+
+| Section | 作者 | 主题 | 与本节关系 |
+|---------|------|------|----------|
+| Section 1 | architect | 环境与版本 | 同：本节 8.5 复用 ProjectVersion.txt 6000.5.3f1 |
+| Section 2 | architect | 程序集现状 | 同：Task 02 启动后由 architect 主写 ui-tools 协同 |
+| Section 3 | architect | 资产与依赖 | 同：本节 8.3 复用 Assets 目录结构、8.5 复用 ProjectSettings |
+| Section 4 | qa | 文档自洽性 | 同：本节 8.2 类别与 Docs/02 / Docs/03 对齐 |
+| Section 5 | qa | 工程就绪与编译基线 | 同：5.7 BatchMode 已跑、5.8 Library/ 已生成 |
+| Section 6 | qa | Task 01 → Task 02 交接 | 补充：8.7 给出 ui-tools 在 Task 02 内 5 项待办 |
+| Section 7 | gameplay + Lead | 战斗代码只读审计 | 互补：7.x 审 Core 战斗代码，8.x 审 Unity 业务资产 |
+
+本节与 Section 7 互补：Section 7 验证 `D:\AI-Worktrees\Xingyuan\gameplay` 侧的 Starfall.Core / Starfall.Data 实现尚未起步（合理）；本节验证 `D:\AI-Worktrees\Xingyuan\ui-tools` 侧的 Starfall.Unity / Presenter / UI / Data 容器实现尚未起步（合理）；Task 02 启动后两侧由 architect 主导新建 asmdef 脚手架，gameplay 与 ui-tools 各自填充 Core / Unity 实现。
+
+---
+
 ## 已知偏差与建议（QA Phase C-1 重写）
 
 > **重分类口径**（用户裁决 2026-07-12 18:51 GMT+8，已最终生效）：
