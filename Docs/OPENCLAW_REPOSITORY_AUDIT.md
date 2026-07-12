@@ -3416,3 +3416,120 @@ agent/11-replay-and-undo → main 合并策略：   候用户裁决
 | M-25 | agent/11-replay-and-undo 合并到 main？ | B（与 Task 12+ 一起合） |
 | M-26 | 启动 Task 12（Replay 文件 JSON 持久化）？ | A（自动） |
 | M-27 | Task 12 范围？ | A 最小（Replay 序列化 + 反序列化 + 跨平台字节序稳定） |
+
+---
+
+## Task 12 Final Gate — Lead Phase E 整合（2026-07-13 01:25 GMT+8）
+> **作者**：xingyuan-lead
+> **上下文**：Task 12 Phase A 由 gameplay 子会话完成（3m11s）落地 2 commit 到 gent/12-replay-persistence。Lead 修复 3 处问题：(1) ReplayException 取代 DefinitionException 避免 Core→Data 依赖违规；(2) ReplayedCount 已在 Task 11 fix；(3) FullRoundTrip 测试改用 CommandExecutor.Run（绕开 BattleRunner Outcome 检查）。Phase E 由 Lead 亲测编译 + EditMode 全部 PASS。
+
+### Task 12 Phase A — 实施落地证据
+
+#### A.1 — Replay 序列化层（3 文件 / 154 行）
+- Assets/Starfall/Core/Replay/ReplayEntry.cs（20 行，JSON 单条格式）
+- Assets/Starfall/Core/Replay/ReplayFile.cs（14 行，JSON 顶层）
+- Assets/Starfall/Core/Replay/ReplayCodec.cs（120 行，Capture/WriteFile/ReadFile/ReconstructCommands）
+
+#### A.2 — 测试集（1 文件 / 142 行 / 6 [Test]）
+- Assets/Starfall/Tests/EditMode/ReplayCodecTests.cs
+
+### Lead 修复的 3 处问题
+
+#### Fix 1 — ReplayException 取代 DefinitionException（Core→Data 依赖违规）
+- **现象**：首次编译 8 个 error CS0234（'Data' namespace 找不到）
+- **根因**：Starfall.Core asmdef 不引用 Starfall.Data（AGENTS.md §10.1 硬约束）；ReplayCodec 错误使用 DefinitionException 引入 Data 依赖
+- **修复**：commit 2e602b5 新增 ReplayException（Core 本地）+ 替换 DefinitionException 调用
+- **commit SHA**：2e602b5
+
+#### Fix 2 — 测试错误诊断与修复（FullRoundTrip）
+- **现象**：78/79 PASS，FullRoundTrip_HashMatchesOriginal 失败
+- **根因（诊断发现）**：
+  - 首次诊断打印：expected=E0A0C859F085FF9A actual=F4FA9223B102654F fileFinal=E0A0C859F085FF9A
+  - 二次诊断打印：s.Units[0].Pos=(0,0) s.Statuses=0 — **原始状态未被修改！**
+  - **根本原因**：BattleRunner 构造函数调用 WinConditionChecker，MakeState() 只有 Player 无 Enemy → Outcome=PlayerWins → 所有 runner.Submit() 返回 Illegal 但测试不检查返回值 → s 未被修改
+- **修复**：commit c84db07 改用 CommandExecutor.Run(s, move, out _) 直接应用（绕过 BattleRunner 的 Outcome 守卫）
+- **commit SHA**：c84db07
+
+### Task 12 Phase B — 真实编译 + EditMode 测试（Lead 亲测）
+
+#### B.1 — 编译基线
+- 退出码：**0**
+- 日志路径：D:\AI-Worktrees\Xingyuan\gameplay\Logs\task12-recompile.log — **1,969,371 bytes**
+- 总耗时：约 **3 分钟**
+- error CS 次数：**0**
+- warning CS 次数：**2**（ReplayException.cs Exception? 同 Task 06 类型，可接受）
+- DLL：
+  - Starfall.Core.dll：**38,912 bytes**（vs Task 11 的 33,792；Replay 序列化增量）
+  - Starfall.Data.dll：13,824 bytes（无变化）
+  - Starfall.Unity.dll：10,752 bytes（无变化）
+  - Starfall.Tests.EditMode.dll：**35,328 bytes**（vs Task 11 的 32,768；ReplayCodecTests 增量）
+
+#### B.2 — EditMode 测试运行（79 项 / 79 PASS）
+
+- 退出码：**0**
+- testResults.xml：D:\AI-Worktrees\Xingyuan\gameplay\Logs\task12-rerun.xml
+- 总耗时：约 **2 分钟**
+- **test-run 元素属性**：
+  - 	otal=79 passed=79 failed=0 skipped=0 result="Passed"
+
+#### B.3 — 6 个 ReplayCodec 测试详细结果
+
+| # | 测试名 | 结果 |
+|---|---|---|
+| 1 | Capture_ProducesCorrectHashAndEntry | ✅ Passed |
+| 2 | WriteRead_RoundtripsFile | ✅ Passed |
+| 3 | ReconstructCommands_MoveCommandRoundTrip | ✅ Passed |
+| 4 | ReconstructCommands_ApplyStatusRoundTrip | ✅ Passed |
+| 5 | FullRoundTrip_HashMatchesOriginal | ✅ Passed（Lead fix） |
+| 6 | ReadFile_MissingThrows | ✅ Passed |
+
+其他 73 测试全部 PASS（4 CoreGuard + 12 Foundation + 9 Command-Pathfinder + 10 Status + 7 Data + 9 Combat + 8 Anchor+Decree + 6 Presentation + 8 Replay+Undo）
+
+### Task 12 Gate 判定：✅ **PASS**
+
+| Gate 项 | 期望 | 实测 | 状态 |
+|---|---|---|---|
+| 编译 run-and-pass | exit 0 / 0 error | exit 0 / 0 error / 2 warning | ✅ |
+| Replay 持久化 | JSON 序列化 + 反序列化 | ReplayCodec 全套 + ulong 精度保持（E0A0C859F085FF9A 字节级一致） | ✅ |
+| ReplayCodec 6/6 | 6 passed | 6 passed | ✅ |
+| 累计 79/79 | 73 + 6 = 79 | 79 passed | ✅ |
+| Core→Data 隔离 | 无违规 | ReplayException 替代 DefinitionException | ✅ |
+| 模板/Packages 未改 | 不动 | 仅 Assets/Starfall/Core/Replay + Tests | ✅ |
+
+### Task 12 Final Commit Chain on gent/12-replay-persistence（基于 agent/11-replay-and-undo@510d6da）
+`
+c84db07  01:21  fix(test): FullRoundTrip uses CommandExecutor.Run directly (BattleRunner rejects since Outcome=PlayerWins when no enemy unit)
+d05cad7  01:18  diag(test): more detailed state dump for FullRoundTrip
+feebe8b  01:15  diag(test): print expected/actual hashes for FullRoundTrip_HashMatchesOriginal failure
+2e602b5  01:11  fix(replay): add ReplayException (Core-local) to avoid Core->Data dependency violation
+13e3366  01:07  test(replay): add ReplayCodecTests with 6 [Test] (capture/roundtrip/reconstruct/hash-mismatch)
+2b50e7c  01:07  feat(replay): add ReplayEntry + ReplayFile + ReplayCodec (capture/write/read/reconstruct)
+`
+
+6 commits ahead of Task 11
+
+### Task 12 READINESS 状态最终
+`
+Task 12 Gate:                 PASS（6/6 验证项 + 79/79 测试）
+Task 13 READINESS:            READY（相 Phase 翻转 / 挤压 / 坠落 等物理规则可基于现有 Model + Status 启动）
+agent/12-replay-persistence → main 合并策略：   候用户裁决
+`
+
+### 累计 Starfall.* 资产
+- Core: 39 .cs（36 Task 03-11 + 3 Replay 序列化）
+- Data: 8 .cs
+- Unity: 8 .cs
+- Tests: 10 文件 / 79 [Test]
+- **合计**：55 个业务 .cs + 10 测试集
+
+### Known Limitations（不影响 Gate）
+- ReplayCodec.MoveCommand 重建的 path 简化为 [From, To] 两点；中间路径点（如规避 Blocked）丢失 — 不影响 hash 一致性但视觉 Replay 可能与原始不同
+- ReplayFile 无 InitialState 完整序列化（仅保留 InitialTurnNumber + InitialActivePlayer）；重放必须使用相同的初始 BattleDefinition JSON
+
+### 下一轮建议（候用户裁决）
+
+| ID | 决策 | Lead 建议 |
+|---|---|---|
+| M-28 | agent/12-replay-persistence 合并到 main？ | B（与 Task 13+ 一起合） |
+| M-29 | 启动 Task 13（坠落 / 挤压 / 相位翻转集成）？ | A（自动） |
+| M-30 | Task 13 范围？ | A 最小（FallingCommand + CrushResolver + PhaseFlipValidator） |
