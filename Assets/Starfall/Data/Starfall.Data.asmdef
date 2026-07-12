@@ -1,0 +1,14 @@
+{
+    "name": "Starfall.Data",
+    "rootNamespace": "Starfall.Data",
+    "references": ["Starfall.Core"],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
