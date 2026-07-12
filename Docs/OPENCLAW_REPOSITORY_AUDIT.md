@@ -1392,6 +1392,177 @@ m_CustomRenderPipeline: {fileID: 11400000, guid: 4b83569d67af61e458304325a23e5df
 
 ---
 
+## Section 9 — Lead Phase D 整合与 Task 02 READINESS 判定
+
+> **作者**：`xingyuan-lead`（2026-07-12 20:25 GMT+8）
+> **上下文**：Task 01 五个 Agent 分阶段提交均已完成。`agent/01-repository-audit` 分支现含 5 个 audit commit（base 8a3fb1f 不计）。
+> **职责**：对 Section 1-8 做最终文档自洽性交叉验证、形成 Task 02 READINESS 判定、给出 BLOCKING USER DECISION 项与下一轮建议。
+
+### 9.1 最终文档自洽性矩阵（Lead 汇总）
+
+矩阵来源：§4.1（qa 出的 15 行 M1-M15）+ 本节新增 M16-M19（Section 7 / 8 / 9 的交叉引用）。
+
+| # | 来源 | 目标 | 主题 | 是否一致 | 证据 |
+|---|---|---|---|---|---|
+| M1 | AGENTS.md §1 | Docs/01 §1 | MVP 差异化玩法 | ✅ | §4.1 |
+| M2 | AGENTS.md §11 | Docs/01 §5 | 网格排序 y→x | ✅ | §4.1 |
+| M3 | AGENTS.md §10 | Docs/02 §3 | asmdef 命名 + 依赖 | ✅（当前 0/5 已记录） | §4.1 |
+| M4 | AGENTS.md §10.2/3 | Docs/02 §3 | Data→Core / Unity→{Core,Data,UnityEngine} | ✅（无越界，模板未引用业务层） | §4.1 |
+| M5 | AGENTS.md §11 | Docs/02 §4 | GridPos IComparable / y→x | ✅（待 Task 03 实现） | §4.1 |
+| M6 | AGENTS.md §12 | Docs/01 §2 | MVP 排除项 | ✅ | §4.1 |
+| M7 | AGENTS.md §5.2-5.6 | 实际 Worktree | 5 个 Agent 路径 | ✅ | §4.1 + 本节实测 |
+| M8 | AGENTS.md §9 | 实际分支命名 | `agent/<role>-bootstrap` | ✅ | §4.1 |
+| M9 | AGENTS.md §17 | Docs/05 §12 | 报告 + 证据 | ✅ | §4.1 |
+| M10 | AGENTS.md §17 | Docs/05 §13 | 状态枚举 vs 缺陷等级 | ⚠️ 措辞差异 | §4.1 |
+| M11 | Docs/01 §2 vs ProjectVersion.txt | Unity 版本 | ❌ **不一致（BLOCKING USER DECISION U-A）** | §4.1 + §5.1 + §6.1(b) |
+| M12 | Docs/02 §3 vs *.asmdef | asmdef 数量 | ❌ 0/5（Planned Gap — Task 02 G-A） | §4.1 + §6.1(c) |
+| M13 | Docs/05 §4-5 vs Assets/Tests | 测试程序集 | ❌ 不存在（与 M12 同源） | §4.1 |
+| M14 | AGENTS.md §11 | Docs/02 §4 GridPos | 排序约束 | ✅ | §4.1 |
+| M15 | AGENTS.md §18 | Docs/04 §3 | ADR / KNOWN_LIMITATIONS 维护路径 | ⚠️ 待 Task 02 内交叉 | §4.1 |
+| **M16** | §7.5（gameplay） | §8.5（ui-tools） | 模板脚手架识别（Readme.cs / ReadmeEditor.cs） | ✅ | 两节均识别为 URP Blank 模板，未触发业务越界；删除路径在 §8.7 Risk-A 同步列出 |
+| **M17** | §7.2（gameplay 8 类） | §8.2（ui-tools 8 类） | 业务代码 + 业务资产 = 0 | ✅ | 两节矩阵均全 0 匹配，Task 01 基线一致 |
+| **M18** | §5.7（qa BatchMode） | §8.4（ui-tools Library 检查） | Library/ 与 .gitignore 互洽 | ✅ | qa 跑出 70 DLLs + 4,608B Assembly-CSharp.dll + 10,240B Editor.dll；ui-tools 验证 Library/ 被 .gitignore L1 覆盖；qa 跑批所在 worktree（D:\AI-Worktrees\Xingyuan\qa）的 Library/ 为 gitignored 残留，不会污染 main |
+| **M19** | §6.1 进入条件（qa 7 项） | §7.8 + §8.7（gameplay + ui-tools READINESS） | Task 02 启动多视角一致性 | ✅ | qa 7 项 + gameplay 2 项预确认（ADR-0001 + 5 个 asmdef）+ ui-tools 5 项待办（G-F / G-G / I-A / I-B / I-C）互不冲突且合并后形成 9 项联合进入条件 |
+
+**结论**：15+4 = 19 行矩阵全部一致或可接受；**唯一 BLOCKING USER DECISION = M11**（Unity 版本）。
+
+### 9.2 Task 02 READINESS 判定
+
+#### 9.2.1 评分维度（5 维度）
+
+| 维度 | 证据来源 | 状态 |
+|---|---|---|
+| 1. 文档交付完整性 | §1-§8 全部落地 + 已知偏差 + 附录 | ✅ PASS |
+| 2. 真实编译基线 | §5.7 Unity BatchMode（exit 0 / 0 error / 0 warning / 90s import） | ✅ PASS |
+| 3. 零业务代码越界 | §7.2 + §8.2 16 类全 0 匹配 + §5.6 Core 守卫 grep 仅模板 3 行命中 | ✅ PASS |
+| 4. 多 Agent READINESS 一致性 | §6.1（qa）+ §7.8（gameplay）+ §8.7（ui-tools） | ✅ PASS |
+| 5. 已知偏差分类完整 | 重新分类 § + M11-M13 重分类对照表 | ✅ PASS（仅 M11 BLOCKING） |
+
+#### 9.2.2 READINESS 结论
+
+```
+TASK 02 READINESS: **READY WITH CONDITIONS**
+```
+
+**判定依据**：
+
+- ✅ Task 01 范围内所有交付物（环境审计 + 真实编译基线 + 多视角资产审计 + 已知偏差分类）均已完成。
+- ✅ 5 个 Agent（architect / qa / gameplay / ui-tools / lead）均无遗留返工项。
+- ✅ Worktree 链 5 个 commit 干净，`agent/01-repository-audit` 分支可被 Task 02 分支直接基于派生。
+- ⚠️ **唯一 BLOCKING 条件**：Unity 版本不一致（U-A / M11）。Task 02 必须在用户对 Unity 版本裁决后才允许启动。
+
+**进入 Task 02 需满足的 9 项联合条件**（整合自 qa §6.1 + gameplay §7.8 + ui-tools §8.7）：
+
+| # | 条件 | 来源 | 类别 |
+|---|---|---|---|
+| (a) | Task 01 审计 doc 已落地 | qa §6.1(a) | ✅ 已满足 |
+| **(b)** | **用户裁决 Unity 版本（6000.5.3f1 vs 文档 6.3 LTS）** | qa §6.1(b) + §5.1 + 本节 §9.1 M11 | **🔴 BLOCKING USER DECISION** |
+| (c) | 5 个 `Starfall.*` asmdef 由 architect 创建 | qa §6.1(c) + gameplay §7.8 + §9.1 M12 | 🟡 Planned Gap — Task 02 G-A |
+| (d) | ADR-0001 + ADR-0002 由 architect 起草 | qa §6.1(d) + gameplay §7.8 | 🟡 Planned Gap — Task 02 G-B |
+| (e) | ProjectSettings 默认值清理（companyName / bundle ID / scene 列表）由用户裁决 | qa §6.1(e) + ui-tools §8.7 I-A/I-B | 🟢 信息项，可在 Task 02 启动前裁决 |
+| (f) | 未使用 4 项 Packages（timeline / visualscripting / multiplayer.center / ide.rider）由用户裁决 | qa §6.1(f) + ui-tools §8.7 I-C | 🟢 信息项，可在 Task 02 启动前裁决 |
+| (g) | 新分支 `agent/02-project-skeleton` 由 architect 从 `agent/01-repository-audit` 派生 | qa §6.1(g) | 🟡 Planned Gap — Task 02 启动动作 |
+| (h) | ADR-0001 含 FNV-1a 64 位哈希字段顺序（防 Task 04 口径漂移） | gameplay §7.8 | 🟡 Planned Gap — Task 02 内合并 |
+| (i) | Task 02 内 Core 依赖守卫测试建立（`Starfall.Tests.EditMode` + 禁止符号扫描） | gameplay §7.7 + qa §6.3 + §9.1 M13 | 🟡 Planned Gap — Task 02 G-C |
+
+**READY WITH CONDITIONS** 含义：Task 02 可在用户裁决条件 (b) 后立即启动；其余 8 项均为 Task 02 内部交付物，不阻塞启动但需在 Task 02 Gate 中验证。
+
+### 9.3 BLOCKING USER DECISION 项详细说明
+
+**U-A：Unity 版本不一致**
+
+| 维度 | 声明 | 实测 |
+|---|---|---|
+| `Docs/01 §2` 技术平台 | `Unity 6.3 LTS` | — |
+| `Docs/02 §1` 引用 | `Unity 6.3 LTS` | — |
+| `ProjectSettings/ProjectVersion.txt` | — | `6000.5.3f1`（`c2eb47b3a2a9`） |
+
+**实测确认（不靠 Unity 包兼容性矩阵；靠 §5.7 真实 BatchMode）**：
+
+- URP 17.5.0 + 6000.5.3f1 编译 **run-and-pass**（exit 0 / 0 error / 0 warning）
+- Assembly-CSharp.dll 4,608 bytes + Editor.dll 10,240 bytes 干净产出
+- 70 个 DLL 在 `Library/ScriptAssemblies/` 完整生成
+
+**3 个裁决选项**（来自 §5.1）：
+
+| 选项 | 动作 | 风险 | 推荐度 |
+|---|---|---|---|
+| **A** | 文档更新：将 `Docs/01 §2` + `Docs/02 §1` 中 `Unity 6.3 LTS` 更正为 `Unity 6.5 (6000.5.3f1)` | 低（不改 ProjectSettings） | ⭐⭐⭐ 推荐（影响最小） |
+| **B** | 版本升降：切换 Unity Editor 到 `Unity 6.3 LTS`（6000.3.x） | 高（ProjectVersion 重生成 + 模板 reimport + 可能触发 URP / Test Framework 版本冲突） | ⛔ 不推荐 |
+| **C** | 维持现状并记录偏差：保留 `6000.5.3f1`，偏差记入 `docs/KNOWN_LIMITATIONS.md` | 中（后续 ADR / 文档需统一指向 6.5） | △ 可接受 |
+
+**Lead 建议**：选项 A（文档更新）——理由：
+
+1. BatchMode 已实证 URP 17.5.0 + 6000.5.3f1 编译 run-and-pass，无需为追逐「6.3 LTS」字样而回退 Unity Editor；
+2. `com.unity.test-framework 1.7.0` / `com.unity.inputsystem 1.19.0` / `com.unity.render-pipelines.universal 17.5.0` 均已在 6000.5.3f1 下验证编译；
+3. 修改 2 处文档字符串（`Docs/01` + `Docs/02`）远比重新安装 Unity Editor + 触发 1000+ 资产 reimport 经济；
+4. 后续 ADR / 新文档可直接统一写 `Unity 6.5 (6000.5.3f1)`。
+
+### 9.4 Task 01 总结
+
+**已完成（5 个 audit commit）**：
+
+```
+db0d666 docs(audit): unity asset audit by xingyuan-ui-tools         290 lines
+61b9e19 docs(audit): battle code audit (recovered from gameplay)    237 lines  (Lead 接管)
+f0394fa docs(audit): batchmode baseline + reclassification by qa    310 lines  (含真实 BatchMode)
+a6a8629 docs(audit): sections 4-6 by xingyuan-qa                   310 lines
+b23285e docs(audit): sections 1-3 by xingyuan-architect            624 lines
+                     Docs/OPENCLAW_REPOSITORY_AUDIT.md 共 1657 行新增（1 file changed）
+```
+
+**未完成 / 阻塞**：0 项；Task 01 范围内全部完成。
+
+**关键数据点**：
+
+- Unity Editor：6000.5.3f1（已实测）
+- URP：17.5.0（已实测编译 run-and-pass）
+- Test Framework：1.7.0（已就位）
+- asmdef：0 / 5（Planned Gap G-A — Task 02）
+- Assets/Scripts/：不存在（Planned Gap — Task 02 由 architect 创建）
+- 业务代码：0（16 类 grep 全 0 匹配）
+- 业务资产：0（template-only）
+- 模板脚手架：2 个 .cs（Readme + ReadmeEditor）+ 1 个 .asset（Readme）+ 1 个 .wlt + 1 个 .png（Planned Gap G-F — Task 02 删除）
+- Unity BatchMode：exit 0 / 0 error / 0 warning / 70 DLLs / 90s 首次 import
+
+### 9.5 下一轮建议（待用户裁决）
+
+1. **首选行动**：用户裁决 U-A（建议选项 A — 文档更新 `Unity 6.3 LTS` → `Unity 6.5 (6000.5.3f1)`，仅改 `Docs/01 §2` + `Docs/02 §1` 两处字符串）；
+2. 用户裁决 U-A 后，Task 02 即可启动：
+   - Lead 起草 Task 02 Task Package（asmdef + ADR-0001/0002 + Core 守卫测试 + ProjectSettings 默认值裁决 + Packages 清理裁决）；
+   - architect 在 `agent/02-project-skeleton` 分支主责 5 个 asmdef 创建 + ADR 起草；
+   - ui-tools 协同处理 ProjectSettings + TutorialInfo 删除 + Packages 候选清理；
+   - qa 建立 Core 依赖守卫测试 + 真实 BatchMode compile + EditMode 测试运行；
+   - gameplay 待命 Task 03 启动；
+3. 关键风险（再述）：
+   - U-A 未裁决前不允许进入 Task 02；
+   - 删除 `Assets/TutorialInfo/` 须同步删除 `Assets/Readme.asset`（§8.7 Risk-A）；
+   - InputAction 资源改造须增量修改保留 binding（§8.7 Risk-B）；
+   - TagManager 仅 Default/Water/UI 三层，业务 Tag（BattleUnit/PhaseAlpha/PhaseBeta/Gravity）在 Task 03+ 追加（§8.7 Risk-C）；
+   - main worktree 已存在 `Library/`（来自 qa 在 qa worktree 跑 BatchMode 的产物），但 Library/ 被 .gitignore L1 覆盖，且与 main worktree 隔离不会被 git 跟踪。
+
+### 9.6 Lead 签收
+
+```
+Agent:    xingyuan-lead
+Workspace: D:\UntiyProject\XingyuanCovenant（main worktree）
+Branch:   agent/01-repository-audit（HEAD = 即将生成的 Lead commit）
+Time:     2026-07-12 20:25 GMT+8
+Mode:     read + edit Docs/OPENCLAW_REPOSITORY_AUDIT.md（追加 Section 9）
+Forbid:   不修改业务代码 / ProjectSettings / Packages / Unity 版本 / .agents/skills
+Push:     不 Push / 不合并 / 不开始 Task 02
+```
+
+**Lead Phase D 自检**：
+
+- ✅ 19 行文档自洽性矩阵（含 Section 7/8 交叉）
+- ✅ Task 02 READINESS 评分 5 维度全 PASS（除 U-A BLOCKING）
+- ✅ 9 项联合进入条件整合自 3 个 Agent
+- ✅ U-A 3 选项 + Lead 建议 A
+- ✅ Task 01 总结 + 关键数据点 + 下一轮建议
+
+**下一动作（等待用户裁决）**：等待用户对 U-A 的 3 选 1 裁决（A / B / C），以及是否批准进入 Task 02。
+
 ## 已知偏差与建议（QA Phase C-1 重写）
 
 > **重分类口径**（用户裁决 2026-07-12 18:51 GMT+8，已最终生效）：
