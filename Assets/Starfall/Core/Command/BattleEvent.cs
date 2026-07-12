@@ -11,6 +11,8 @@ namespace Starfall.Core.Command
         StatusRemoved = 4,
         UnitDamaged = 5,
         UnitPhaseInverted = 6,
+        DecreeApplied = 7,
+        DecreeExpired = 8,
     }
 
     /// <summary>
