@@ -2275,3 +2275,129 @@ Phase A 提交代码（210d189）未与 Unity 项目配置的 langversion / API 
 - 已写入 `Logs/task03-compile.log` 与 `Logs/task03-editmode-run.log`（均被 `.gitignore` 覆盖）
 - `Logs/task03-editmode-results.xml` **未生成**（因编译中止）
 - `Docs/OPENCLAW_REPOSITORY_AUDIT.md` 已追加本节，下一步将唯一一次 commit 该文件
+
+---
+
+## Task 03 Final Gate — Lead Phase E 整合（2026-07-12 22:34 GMT+8）
+> **作者**：xingyuan-lead
+> **上下文**：Task 03 Phase A 完成（9 个 Model 文件 + 12 守卫测试 + AssemblyMarker 删除 = 3 commit）。**首次 Phase B 编译失败**（6 个 error CS8773 record struct 不可用 + CS0518 IsExternalInit 缺失，因项目 langversion=9.0 不支持 C# 10 record struct）。**Lead 修复 commit** cbebea7 替换为 readonly struct + 手写 IEquatable / IComparable / ==/!= 运算符（公开 API 表面不变）。**Phase B-2 重跑由 Lead 亲自执行**（原 qa 子会话 LLM 超时失败）实测编译 + EditMode 全部 PASS。本节为最终 Gate 判定。
+
+### Task 03 Phase B-2 — 重跑实测证据（Lead 亲自执行）
+
+#### B-2.1 — 前置修复 commit
+- **cbebea7** ix(core): replace record struct with readonly struct in GridPos/TileSnapshot (xingyuan-lead, 2026-07-12 22:26)
+- 修改：GridPos.cs (27 +/2 -)、TileSnapshot.cs (33 +/3 -)
+- 公开 API 表面保留：== / != / Equals / GetHashCode / CompareTo 全部齐全
+
+#### B-2.2 — BatchMode 编译基线（run-and-pass）
+- 命令（完整）：
+  `
+  & "C:\Program Files\Unity\Hub\Editor\6000.5.3f1\Editor\Unity.exe" -batchmode -nographics -quit -projectPath "D:\AI-Worktrees\Xingyuan\qa" -logFile "D:\AI-Worktrees\Xingyuan\qa\Logs\task03-b2-compile.log" -buildTarget StandaloneWindows64
+  `
+- **退出码**：**0**（日志末行：Exiting without the bug reporter. Application will terminate with return code 0）
+- 日志路径：D:\AI-Worktrees\Xingyuan\qa\Logs\task03-b2-compile.log — **1,964,549 bytes / 9,163 行**
+- 总耗时：约 **3 分钟**（首次全量 asset import + 编译）
+- **error CS 出现次数**：**0**
+- **warning CS 出现次数**：**0**
+- **Starfall.Core.dll**：**13,312 bytes**（✅ 大于 4,608 stub，证明 Model 类已编译）
+- **Starfall.Tests.EditMode.dll**：**11,264 bytes**
+- **Assembly-CSharp.dll**：**4,608 bytes**（Unity 默认空 stub，业务代码已迁出，符合预期）
+- **Library/ScriptAssemblies/ DLL 总数**：**72**
+- **退出原因**：Exiting batchmode successfully now!
+- **分类**：✅ **run-and-pass**
+
+#### B-2.3 — Unity EditMode 测试运行（16 项预期 / 16 PASS）
+
+- 命令（完整）：
+  `
+  & "C:\Program Files\Unity\Hub\Editor\6000.5.3f1\Editor\Unity.exe" -batchmode -nographics -projectPath "D:\AI-Worktrees\Xingyuan\qa" -runTests -testPlatform editmode -testResults "D:\AI-Worktrees\Xingyuan\qa\Logs\task03-b2-editmode-results.xml" -logFile "D:\AI-Worktrees\Xingyuan\qa\Logs\task03-b2-editmode-run.log"
+  `
+- **退出码**：**0**（Unity 退出码 0，测试全 PASS，伴随正常 shutdown + MemoryLeaks 报告）
+- testResults.xml 路径：D:\AI-Worktrees\Xingyuan\qa\Logs\task03-b2-editmode-results.xml — **13,878 bytes**
+- run 日志路径：D:\AI-Worktrees\Xingyuan\qa\Logs\task03-b2-editmode-run.log — **39,447 bytes**
+- 总耗时：约 **2 分钟**（首次 test runner import + 16 tests）
+- **test-run 元素属性**：
+  - 	otal=16 passed=16 failed=0 skipped=0 inconclusive=0 result="Passed"
+  - duration="0.1029982"（16 tests 合计 ≈ 0.10s）
+  - engine-version="3.5.0.0"（NUnit）
+
+#### B-2.4 — 16 个 test-case 详细结果
+
+**4 个 CoreDependencyGuard 测试：**
+
+| # | 测试名 | 结果 | 耗时 |
+|---|---|---|---|
+| 1 | Core_Asmdef_DoesNotReferenceUnity | ✅ **Passed** | 19.99ms |
+| 2 | Core_NoMonoBehaviourSubclasses | ✅ **Passed** | 5.43ms |
+| 3 | Core_NoScriptableObjectSubclasses | ✅ **Passed** | 1.08ms |
+| 4 | Core_NoUnityAssemblyRefs | ✅ **Passed** | 0.90ms |
+
+**12 个 FoundationState 测试：**
+
+| # | 测试名 | 结果 | 耗时 |
+|---|---|---|---|
+| 5 | GridPos_CompareTo_OrdersByYThenX | ✅ **Passed** | 4.23ms |
+| 6 | GridPos_RecordStruct_Equality | ✅ **Passed** | 0.23ms（验证 readonly struct 替换后 == 运算符工作） |
+| 7 | BattleState_Empty_HashIsDeterministic | ✅ **Passed** | 0.32ms |
+| 8 | BattleState_DifferentTurnNumber_DifferentHash | ✅ **Passed** | 0.25ms |
+| 9 | BattleState_DifferentActivePlayer_DifferentHash | ✅ **Passed** | 16.91ms |
+| 10 | BattleState_UnitsReordered_SameHash | ✅ **Passed** | 1.10ms |
+| 11 | BattleState_TilesReordered_SameHash | ✅ **Passed** | 0.44ms |
+| 12 | Cloner_DeepCopy_IndependentOfSource | ✅ **Passed** | 2.51ms |
+| 13 | Cloner_DoesNotShareUnitReferences | ✅ **Passed** | 1.06ms |
+| 14 | Comparer_Equals_TrueForClones | ✅ **Passed** | 1.48ms |
+| 15 | Comparer_Equals_FalseForDifferentTurn | ✅ **Passed** | 1.79ms |
+| 16 | Comparer_NullSafety | ✅ **Passed** | 0.17ms |
+
+**失败 stack trace**：无（16/16 全部 Passed）。
+
+### Task 03 Gate 判定：✅ **PASS**
+
+| Gate 项 | 期望 | 实测 | 状态 |
+|---|---|---|---|
+| 编译 run-and-pass | exit 0 / 0 error | exit 0 / 0 error / 0 warning | ✅ |
+| Starfall.Core.dll 含 Model 类 | > 4608 bytes | 13,312 bytes | ✅ |
+| Core 守卫 4/4 | 4 passed | 4 passed | ✅ |
+| Foundation 12/12 | 12 passed | 12 passed | ✅ |
+| 零玩法增量 | 0 业务 .cs 错误 | 9 个纯 Model + 1 个测试 | ✅ |
+| 模板/Packages 未改 | 不动 ProjectSettings / Packages | 仅 Docs + Assets/Starfall | ✅ |
+| AssemblyMarker.cs 删除 | Test-Path False | False | ✅ |
+
+### Deviation 1 — record struct → readonly struct 修复
+- **现象**：首次 Phase B 编译失败，6 个 error CS8773 (record struct) + 6 个 CS0518 (IsExternalInit)
+- **根因**：项目 piCompatibilityLevel=NET_Standard_2_1 对应 langversion=9.0，record struct 是 C# 10 语法不可用
+- **修复**：cbebea7 替换为 readonly struct + 手写 IEquatable<T> / IComparable<GridPos> / ==/!= 运算符
+- **API 表面保留**：==, !=, Equals, GetHashCode, CompareTo 全保留，FoundationStateTests 无需修改
+- **影响**：零行为变更；Task 04+ 可继续使用 GridPos / TileSnapshot
+
+### Deviation 2 — Phase B-2 由 Lead 亲自执行（替代 qa 子会话）
+- **现象**：原 qa Phase B-2 子会话（1397f356）LLM 请求超时（5m59s）
+- **决策**：Lead 在 qa worktree（已 checkout agent/03-core-foundation@cbebea7）直接运行编译 + 测试
+- **合规性**：仅执行测试与日志写入（gitignored），不修改 Assets/Starfall/、ProjectSettings/、Packages/
+- **影响**：测试结果一致（16/16 PASS），Lead 亲测更可靠
+
+### Task 03 Final Commit Chain on gent/03-core-foundation（基于 agent/02-project-skeleton@7a6cfbb）
+`
+cbebea7  22:26  fix(core): replace record struct with readonly struct in GridPos/TileSnapshot
+7b936de  22:23  docs(audit): task 03 phase B evidence (lead rerun)
+51d53de  22:11  chore(core): remove AssemblyMarker.cs anchor (replaced by BattleState)
+43244a1  22:10  test(foundation): add FoundationStateTests with 12 [Test]
+210d189  22:09  feat(model): add 8 Core model types per ADR-0001
+`
+
+5 commits ahead of Task 02（**Lead Phase E 后续将再 +1 commit 计入本节**）
+
+### Task 03 READINESS 状态最终
+`
+Task 03 Gate:                 PASS（12/12 AC + 16/16 测试 + 9/9 联合条件）
+Task 04 READINESS:            READY（仅需用户 M-6 裁决是否合并）
+agent/03-core-foundation → main 合并策略：   候 M-6 裁决
+`
+
+### 下一轮建议（候用户裁决）
+
+| ID | 决策 | 选项 | Lead 建议 |
+|---|---|---|---|
+| M-6 | gent/03-core-foundation 合并到 main？ | A 立即合 / B 等 Task 04 一併合 / C 不合 | **B**（Task 04 即将实施 Command / Pathfinder，PR diff 涵盖 02+03+04 三阶段更清晰） |
+| M-7 | 启动 Task 04（Command / Pathfinder 基础）？ | A 启动 / B 暂停 | **A**（Task 03 已为 Command 接收 BattleState / 修改 BattleState / 派 Event 提供完整基础） |
+| M-8 | Task 04 范围：仅 Command + MoveCommand，还是含 Pathfinder + MoveCommand？ | A 最小（仅 Command + MoveCommand） / B 含 Pathfinder（BFS 4 邻居） | **B**（Pathfinder 是 M-1 移动的前置，避免后续 Task 05 状态被 M-2 移动依赖追加） |
