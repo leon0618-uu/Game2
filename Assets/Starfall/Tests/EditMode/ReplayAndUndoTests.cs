@@ -69,7 +69,7 @@ namespace Starfall.Tests.EditMode
             var freshState = MakeState();
             var result = ReplayPlayer.Replay(freshState, rec.Records, expectedHash);
             Assert.IsTrue(result.HashMatches);
-            Assert.AreEqual(2, result.ReplayedCount);  // 1 record
+            Assert.AreEqual(1, result.ReplayedCount);  // 1 record replayed once
         }
 
         [Test]
