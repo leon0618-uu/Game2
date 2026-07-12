@@ -129,6 +129,10 @@ namespace Starfall.Tests.EditMode
             var cmds = ReplayCodec.ReconstructCommands(loaded);
             foreach (var c in cmds) CommandExecutor.Run(freshState, c, out _);
             System.Console.WriteLine($"[DIAG] expected={expected:X16} actual={freshState.PostStateHash:X16} fileFinal={loaded.FinalHash:X16} cmds={cmds.Count}");
+            System.Console.WriteLine($"[DIAG] s.TN={s.TurnNumber} s.NSID={s.NextStatusInstanceId} s.Units={s.Units.Count} s.Units[0].Pos={s.Units[0].Pos} s.Statuses={s.Statuses.Count}");
+            System.Console.WriteLine($"[DIAG] f.TN={freshState.TurnNumber} f.NSID={freshState.NextStatusInstanceId} f.Units={freshState.Units.Count} f.Units[0].Pos={freshState.Units[0].Pos} f.Statuses={freshState.Statuses.Count}");
+            foreach (var st in s.Statuses) System.Console.WriteLine($"[DIAG] s.st Kind={st.Kind} RT={st.RemainingTurns} Inst={st.InstanceId} Src={st.SourceUnitId}");
+            foreach (var st in freshState.Statuses) System.Console.WriteLine($"[DIAG] f.st Kind={st.Kind} RT={st.RemainingTurns} Inst={st.InstanceId} Src={st.SourceUnitId}");
             Assert.AreEqual(expected, freshState.PostStateHash);
             File.Delete(tmp);
         }
