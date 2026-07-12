@@ -23,9 +23,9 @@ namespace Starfall.Tests.EditMode
         [Test]
         public void AnchorZone_ContainsInside()
         {
-            // 矩形 (0,0)-(2,0)-(2,2)-(0,2)
+            // 矩形 (0,0)-(3,0)-(3,3)-(0,3) — 对角线交叉于 (1.5, 1.5)，p=(1,1) 不在对角线上
             var z = new AnchorZone(1, "Player", new[] {
-                new GridPos(0, 0), new GridPos(2, 0), new GridPos(2, 2), new GridPos(0, 2)
+                new GridPos(0, 0), new GridPos(3, 0), new GridPos(3, 3), new GridPos(0, 3)
             });
             Assert.IsTrue(z.Contains(new GridPos(1, 1)));
         }
@@ -34,7 +34,7 @@ namespace Starfall.Tests.EditMode
         public void AnchorZone_RejectsOutside()
         {
             var z = new AnchorZone(1, "Player", new[] {
-                new GridPos(0, 0), new GridPos(2, 0), new GridPos(2, 2), new GridPos(0, 2)
+                new GridPos(0, 0), new GridPos(3, 0), new GridPos(3, 3), new GridPos(0, 3)
             });
             Assert.IsFalse(z.Contains(new GridPos(5, 5)));
         }
@@ -82,7 +82,7 @@ namespace Starfall.Tests.EditMode
                 new BoardState(4, 4, new Dictionary<GridPos, TileState>()), null);
             ulong h1 = s.PostStateHash;
             s.Anchors.Register(new AnchorZone(1, "Player", new[] {
-                new GridPos(0, 0), new GridPos(2, 0), new GridPos(2, 2), new GridPos(0, 2)
+                new GridPos(0, 0), new GridPos(3, 0), new GridPos(3, 3), new GridPos(0, 3)
             }));
             ulong h2 = s.PostStateHash;
             Assert.AreNotEqual(h1, h2);
