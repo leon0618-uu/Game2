@@ -2,18 +2,27 @@
 
 > 文档语言：中文（用户批准决策 Q1）
 > 文档语言：Markdown
-> 本文档对应 Task 01 任务包 §2 中的 1.x 取证项；仅覆盖 Section 1–3（环境与版本 / 程序集现状 / 资产与依赖）。Section 4–6 由后续阶段补全。
+> 本文档对应 Task 01 任务包 §2 中的 1.x 取证项；含 Section 1–3 + Section 4–6 + §5.5–§5.8 BatchMode 实测 + §6.1–§6.5 交接 Brief + 「已知偏差与建议」完整重新分类。
 
 ## 元信息
 
-- 任务包版本：v0（2026-07-12 用户批准）
+- 任务包版本：v1（Phase C-1 用户裁决重分类生效：2026-07-12 18:51 GMT+8）
 - 审计日期：2026-07-12
-- 负责 Agent（Phase A+B）：xingyuan-architect
-- 工作区：`D:\AI-Worktrees\Xingyuan\architect`
+- 负责 Agent：
+  - Phase A+B（Section 1-3 + 5.1-5.4）：**xingyuan-architect**
+  - Phase C（Section 4-6 + 5.5-5.8 BatchMode 实测 + 已知偏差重写）：**xingyuan-qa**
+- 工作区：
+  - Phase A+B：`D:\AI-Worktrees\Xingyuan\architect`
+  - Phase C：`D:\AI-Worktrees\Xingyuan\qa`
 - 分支：`agent/01-repository-audit`（自 `origin/main@8a3fb1fc7bbacf10858d992b112c5d2f1102a53b` 派生）
-- 测试基线：**static-only**（未启动 Unity Editor 跑批，未调用编译 / 资源导入 / 测试运行）
-- 写入范围：仅 `Docs/OPENCLAW_REPOSITORY_AUDIT.md`（Phase B 唯一允许的 commit）
-- 关联提交：origin/main HEAD = `8a3fb1f feat(skills): add Xingyuan OpenClaw audit skills`
+- 测试基线：
+  - Phase A+B：**static-only**
+  - Phase C-1：**partial-pass**（业务 C# 编译 + 资产导入 + Domain Reload = run-and-pass；Player 完整构建 = not-run / static-only；EditMode/PlayMode 测试 = not-run；详见 §5.7 + §5.8 + 「已知偏差」🟣 static-only 重声明）
+- 写入范围：仅 `Docs/OPENCLAW_REPOSITORY_AUDIT.md`（Phase B 唯一 commit + Phase C 唯一 commit）
+- 关联提交：
+  - `b23285e docs(audit): sections 1-3 by xingyuan-architect`
+  - `a6a8629 docs(audit): sections 4-6 by xingyuan-qa`（Phase C 初版）
+  - Phase C-1：本批改 commit（待 C8 后回填 SHA）
 
 ---
 
@@ -568,21 +577,220 @@ D:/AI-Worktrees/Xingyuan/ui-tools   8a3fb1f [agent/ui-tools-bootstrap]
 - **Task 02 第一动作前置**：在 architect / ui-tools 启动 Editor 之前，应**先记录一次「Editor 打开后 Console Error 基线」**（基线时间戳、错误条数、警告条数），存档到 `docs/IMPLEMENTATION_STATUS.md`（按 `AGENTS.md §18`）。
 - **Task 02 完成 Gate 应包含**：EditMode 编译 1 次 + Player 编译 1 次 + Console 0 Error 对比（基线 vs Task 02 后）；如基线本身含 Error，须先解决。
 
+### 5.5 Unity Test Framework 现状（Phase C-1 实测）
+
+**取证命令**：
+
+```powershell
+Test-Path Assets/Tests                                                       # False
+Get-ChildItem -Recurse -Filter *.asmdef | Measure-Object                     # Count = 0
+Get-ChildItem -Recurse -Filter *.dll | Where-Object { $_.FullName -like "*Tests*" }  # 0 matches
+Get-ChildItem -Recurse -Directory | Where-Object { $_.Name -like "Starfall*" }       # 0 matches
+```
+
+**Packages/manifest.json 取证**（`Select-String -Pattern "com.unity.test-framework"`）：
+
+```yaml
+L10: "com.unity.test-framework": "1.7.0",
+```
+
+**Unity Log 取证**（`Select-String -Pattern "Test Framework|nunit|TestRunner"` in `Logs/unity-batchmode.log`）：
+
+```text
+L215:  com.unity.ext.nunit@2.1.0 (location: D:\AI-Worktrees\Xingyuan\qa\Library\PackageCache\com.unity.ext.nunit@44f7d31723bd)
+L1825–1834: CopyFiles Library/ScriptAssemblies/UnityEngine.TestRunner.{dll,pdb}, UnityEditor.TestRunner.{dll,pdb}
+L5162: Importing … Packages/com.unity.test-framework.performance/Runtime/Unity.PerformanceTesting.asmdef
+```
+
+**结论**：
+
+| 维度 | 状态 | 证据 |
+|---|---|---|
+| `com.unity.test-framework` | ✅ `1.7.0` 已安装 | `Packages/manifest.json` L10 |
+| `com.unity.ext.nunit` 依赖 | ✅ `2.1.0` 已加载 | Unity Log L215 |
+| Test Runner DLLs 生成 | ✅ `UnityEditor.TestRunner.dll`（313 KB）+ `UnityEngine.TestRunner.dll`（177 KB）已写入 `Library/ScriptAssemblies/` | Unity Log L1825–1834 + `Get-ChildItem Library/ScriptAssemblies` |
+| `Assets/Tests/` 目录 | ❌ 不存在 | `Test-Path` = False |
+| 项目内 `*.asmdef` | ❌ 0 条（5 个 `Starfall.*` 全部缺失） | `Measure-Object Count = 0` |
+| 项目内 `Starfall.*` 目录 | ❌ 0 条 | `Where-Object` 无结果 |
+| Performance Testing 包 | ✅ 隐式安装（test-framework.performance 子包） | Unity Log L5162 |
+
+**判定**：Unity Test Framework 已就绪，但**项目代码侧无可发现测试** — 因 0 个项目 asmdef 且 `Assets/Tests/` 不存在。Test Runner 能加载，但测试清单为空。该项属于「Planned Gap（Task 02 内由 architect 创建 5 个 asmdef 后才具备可发现测试载体）」，不再是 Major 阻塞。
+
+### 5.6 Core 依赖守卫现状（Phase C-1 实测）
+
+**取证命令**：
+
+```powershell
+git grep -nE "(using\s+UnityEngine|using\s+UnityEditor)" Assets/
+git grep -nE "class\s+\w+\s*:\s*(MonoBehaviour|ScriptableObject)" Assets/
+```
+
+**实测输出**：
+
+```text
+Assets/TutorialInfo/Scripts/Editor/ReadmeEditor.cs
+  L3: using UnityEngine;
+  L4: using UnityEditor;
+Assets/TutorialInfo/Scripts/Readme.cs
+  L2: using UnityEngine;
+
+Assets/TutorialInfo/Scripts/Readme.cs
+  L4: public class Readme : ScriptableObject
+```
+
+**`Starfall.Core/` 目录检查**：
+
+```powershell
+Get-ChildItem -Recurse -Directory | Where-Object { $_.Name -like "Starfall*" }
+# → 0 条结果
+```
+
+**结论**：
+
+- **`Starfall.Core/` 程序集尚未建立**（5 个 asmdef 全部缺失 → 目录尚未生成）。
+- `Core 依赖守卫` 的语义（`Starfall.Core` 内禁止 `using UnityEngine` / `using UnityEditor` / 业务型 `MonoBehaviour` / 业务型 `ScriptableObject`）当前**无可执行对象**。
+- 现有 `Assets/TutorialInfo/Scripts/{Readme.cs, ReadmeEditor.cs}` 命中 grep，但属 URP Blank 模板脚手架（详见 §2.1），**非业务代码**，不计入 Core 守卫范围。
+- 真正的 Core 守卫测试（`Starfall.Tests.EditMode` 内扫描 Core 程序集禁止符号）属于 Task 02 主交付物之一（`Starfall.Tests.EditMode` 建立后才可写）。
+- **判定**：Core 依赖守卫 = **未建立**（无 Core 程序集可守）；属「Planned Gap，Task 02 内由 architect 与 gameplay 联合建立」。本次实证确认并未在 `Assets/` 业务代码中发现违规（业务代码本身尚未存在）。
+
+### 5.7 Unity BatchMode 编译基线（Task 01 实测，run-and-pass）
+
+> **本节为 Phase C-1 唯一 run-and-pass 证据**：Task 01 期间首次启动 Unity Editor 实际执行 `BatchMode -quit`，完成了「资产导入 + ScriptAssemblies 编译 + Domain Reload + 退出」完整链路，并产出真实日志与编译产物。
+
+**完整命令字符串**（PowerShell 形式，含反引号行延续）：
+
+```powershell
+& "C:\Program Files\Unity\Hub\Editor\6000.5.3f1\Editor\Unity.exe" `
+  -batchmode `
+  -nographics `
+  -quit `
+  -projectPath "D:\AI-Worktrees\Xingyuan\qa" `
+  -logFile "D:\AI-Worktrees\Xingyuan\qa\Logs\unity-batchmode.log" `
+  -buildTarget StandaloneWindows64
+```
+
+**执行参数**：
+
+| 参数 | 值 | 作用 |
+|---|---|---|
+| `-batchmode` | — | 无 GUI 模式（CI 友好） |
+| `-nographics` | — | 不初始化图形设备（避免 GPU 需求） |
+| `-quit` | — | 完成导入后立即退出（不进入 PlayMode） |
+| `-projectPath` | `D:\AI-Worktrees\Xingyuan\qa` | 当前 qa worktree |
+| `-logFile` | `D:\AI-Worktrees\Xingyuan\qa\Logs\unity-batchmode.log` | 显式日志路径 |
+| `-buildTarget` | `StandaloneWindows64` | 设置活跃构建目标（**不**触发 Player 构建；仅切换 TargetGroup + 触发 ScriptAssemblies 编译） |
+
+**退出码**：
+
+```text
+Exiting batchmode successfully now!
+Exiting without the bug reporter. Application will terminate with return code 0
+```
+
+**进程退出码**：`0`（success）
+
+**日志路径**：`D:\AI-Worktrees\Xingyuan\qa\Logs\unity-batchmode.log`
+
+**日志大小**：`2,043,081` 字节（约 `1.95 MB`），共 `10,214` 行
+
+**关键摘要**（来自日志 `Select-String` 取证）：
+
+| 指标 | 数值 | 证据 / 行号 |
+|---|---|---|
+| 编译错误（`CompileError` / `Compile error` / `Compilation failed`） | **0 条** | `Select-String "CompileError|Compile error|Compilation failed"` → Count = 0 |
+| 日志原文 "Warning" 字符出现 | **2 条**（均为 `TimelineWarning.png` / `Timeline-Marker-Warning-Overlay.png` 资源路径字符串，非真实警告） | Log L6295、L6603 |
+| 真实 `warning:` 前缀警告数 | **0 条** | `Select-String " warning:"` → Count = 0 |
+| License 通道噪声（环境噪声，非业务错误） | 29 行（`[Licensing::Module] …`） | Log L1–L73 |
+| `Curl error 42: Callback aborted`（License 关闭时正常） | 1 行 | Log L10192 |
+| `Assembly-CSharp.dll` 编译 | ✅ 成功（4,608 bytes，已写出） | Log L2163（Csc）+ L2577（CopyFiles） |
+| `Assembly-CSharp-Editor.dll` 编译 | ✅ 成功（10,240 bytes，已写出） | Log L2165 + L2617 |
+| Bee 后端 Dag 节点 | 915 个步骤 | Log L661–L2645 |
+| Domain Reload 次数 | 1 次（reload time=1131 ms） | Log L10127 |
+| 脚本编译时间 | `compile time=29211 ms`（≈ 29 s） | Log L10127 |
+| Asset Pipeline Refresh（首次同步导入） | `Total: 90.557 seconds` | Log L10121（`InitialRefreshV2(ForceSynchronousImport)`） |
+| Asset Pipeline Refresh（收尾） | `Total: 0.078 seconds` | Log L10180（`StopAssetImportingV2(NoUpdateAssetOptions)`） |
+| Test Runner DLL 生成 | ✅ `UnityEditor.TestRunner.dll` (313,856) + `UnityEngine.TestRunner.dll` (177,664) | `Get-ChildItem Library/ScriptAssemblies` |
+| Library/ScriptAssemblies DLL 总数 | 70 个 | `Get-ChildItem … \| Measure-Object` |
+
+**新发现偏差**（BatchMode 实测后追加）：
+
+| ID | 内容 | 影响 | 处理 |
+|---|---|---|---|
+| N-1 | Unity 6 在 batchmode + 无 license 状态下输出 29 行 `[Licensing::Module]` 噪声 + 1 行 `Curl error 42: Callback aborted`（log L10192）。 | 不构成编译错误；属环境噪声。Log 过滤时建议忽略前 100 行与最后 30 行的 license/curl 信号。 | 信息项；不修改 |
+| N-2 | Test Framework 1.7.0 隐式带了 `com.unity.test-framework.performance` 子包（Log L5162）。 | 无影响；Performance Testing 仅在显式新建含 `Unity.PerformanceTesting` 引用的 asmdef 后才参与编译。 | 信息项；不修改 |
+| N-3 | 模板 `Assets/TutorialInfo/` 内含 `Readme.cs : ScriptableObject` 与 `ReadmeEditor.cs : (uses UnityEditor)`，但**未触发任何编译错误**（Assembly-CSharp.dll 仅 4,608 字节，编译成功）。 | 验证模板脚手架可干净编译；与 §2.1 一致。 | 信息项；删除见已知偏差 |
+
+**分类判定（按 `xingyuan-test-gate` SKILL 口径）**：
+
+| 维度 | 判定 | 理由 |
+|---|---|---|
+| C# 脚本编译（Assembly-CSharp + Editor） | **run-and-pass** | Bee 后端 915 步全部 ExitCode=0；Assembly-CSharp.dll + Editor.dll 实际产出；0 compile error |
+| 资产导入（InitialRefreshV2） | **run-and-pass** | 90.557s 同步导入完成（无强制中断）；0 asset import error |
+| Domain Reload | **run-and-pass** | 1 次 reload，1131 ms，无异常 |
+| Test Runner 装配 | **run-and-pass** | 两个 TestRunner DLL 写入 ScriptAssemblies，框架就绪 |
+| Player 编译（实际出 `.exe`） | **not-run** | 本次仅设 `-buildTarget` 切换活跃 TargetGroup；未调用 `BuildPipeline.BuildPlayer` 或带 `-executeMethod` 的 Player 构建方法。仍属 static-only 在 Player 二进制产物维度上 |
+| Console 0 Error 对比 | **partial-pass** | 项目业务代码 0 error；但存在 29 行 licensing 噪声（环境属性，非项目缺陷） |
+
+**为何仍标「partial-pass」而非「run-and-pass」整体通过**：
+
+按用户新指令「不得把 static-only 描述为编译通过 — 必须明确区分 run-and-pass / run-and-fail / static-only」：
+
+- 项目**业务代码编译** = run-and-pass（Assembly-CSharp.dll 实际生成，0 error）
+- **Player 构建** = not-run（仅为活跃 TargetGroup 切换，未触发 `BuildPipeline.BuildPlayer`）
+- 因此整体归类为 **partial-pass**：ScriptAssemblies 跑通 + 资产导入跑通，但 Player 二进制未生成。
+
+**未来改进**（Task 02 起建议补做）：
+
+1. 完整 Player 构建：`-batchmode -quit -projectPath ... -buildTarget StandaloneWindows64 -executeMethod SomeBuildScript.PerformBuild` 才能生成 Player 二进制（需 ScriptableObject Build 配置）
+2. Console 0 Error 基线：在 Task 02 第一动作前再跑一次，结果归档 `docs/IMPLEMENTATION_STATUS.md`
+3. License 噪声过滤：在 QA 自检脚本中 grep 时排除前 100 行 / 最后 30 行
+
+### 5.8 测试发现（Phase C-1 实测）
+
+**取证路径 1 — 文件系统**：
+
+```powershell
+Test-Path Assets/Tests                                                               # False
+(Get-ChildItem -Recurse -Filter *.asmdef | Measure-Object).Count                     # 0
+Get-ChildItem -Recurse -Filter *.dll | Where-Object { $_.FullName -like "*Tests*" } # 0
+```
+
+**取证路径 2 — Unity BatchMode 日志**：
+
+```powershell
+Select-String -Path Logs\unity-batchmode.log -Pattern "Test Discovery|DiscoverTests|Find Tests|Run Tests|TestPlan|test runner"
+# → 0 行匹配（BatchMode -quit 不触发 Test Runner；TestPlan 阶段被跳过）
+```
+
+**结论**：
+
+- **0 tests discovered（预期）**。
+- 原因：项目内 0 个 `.asmdef` + 不存在 `Assets/Tests/` → Test Runner 无可加载程序集，即无可发现测试。
+- 此外 BatchMode 以 `-quit` 退出，未带 `-runTests`，即便存在测试也不会被执行（Test Runner 仅在显式 `-runTests -testPlatform <EditMode|PlayMode>` 时激活）。
+- 仍属「Planned Gap，Task 02 内由 architect 建立 5 个 asmdef + `Starfall.Tests.EditMode` 后才具备可发现测试」。
+
 ---
 
 ## Section 6 — Task 01 → Task 02 交接 Brief（QA 出具）
 
-### 6.1 Task 02 进入条件（Acceptance）
+### 6.1 Task 02 进入条件（Acceptance，重分类后 7 项）
 
-进入 Task 02（工程骨架）须满足：
+进入 Task 02（工程骨架）须满足以下 7 项（按 Phase C-1 用户裁决重写）：
 
-- [x] **Task 01 审计 doc 落地**（本节完成即满足；Section 4-6 + 已知偏差改写 + 1 commit `docs(audit): sections 4-6 by xingyuan-qa`）。
-- [ ] **用户对 Unity 版本偏差（`6000.5.3f1` vs `Unity 6.3 LTS`）作出裁决**（选项见 §5.1：A 文档更新 / B 版本升降 / C 维持并记录）。
-- [ ] **用户对 ProjectSettings 修改需求作出批准**（如需要：改 `companyName` / Android bundle ID / 追加战斗场景到 `EditorBuildSettings.m_Scenes`）。
-- [ ] **architect 起草 ADR-0001**（`Starfall.Core` 数据模型与确定性哈希契约，含 `BattleState` / `GridPos` / `BoardState` / `UnitState` / `TileState` / FNV-1a 64 位哈希字段顺序 / `BattleStateCloner` / `BattleStateComparer`）。
-- [ ] **architect 起草 ADR-0002**（`Presenter` 同步契约，含 `BoardPresenter` / `UnitPresenterRegistry` / `BattleHud` 不持有第二真值；`PresentationEvent` 失败不改 Core；Command 成功后才播放表现）。
-- [ ] **新分支 `agent/02-project-skeleton` 由 architect 创建**（从 `origin/main` 或本审计分支 HEAD 派生）。
-- [ ] **用户裁决依赖清理候选**（`com.unity.timeline` / `com.unity.visualscripting` / `com.unity.multiplayer.center` / `com.unity.ai.navigation` 4 项是否清理）。
+- [x] **(a) Task 01 审计 doc 落地**（本节完成即满足；含 §1–§6 + 「已知偏差」整节重写 + §5.5–§5.8 BatchMode 实测 + 1 commit `docs(audit): batchmode baseline + reclassification by xingyuan-qa`）。
+- [ ] **(b) 【BLOCKING USER DECISION】用户对 Unity 版本偏差（`6000.5.3f1` vs `Unity 6.3 LTS`）作出裁决**（选项见 §5.1：A 文档更新 / B 版本升降 / C 维持并记录偏差）。**唯一保留的 Major 级阻塞项**。
+- [ ] **(c) 【Planned Gap — Task 02】5 个 `Starfall.*` asmdef 由 architect 创建完成**（`Starfall.Core` / `Starfall.Data` / `Starfall.Unity` / `Starfall.Tests.EditMode` / `Starfall.Tests.PlayMode`，依赖图与 `Docs/02 §3` 一致）。原 Major M-B 降级为 Task 02 主交付。
+- [ ] **(d) 【Planned Gap — Task 02】architect 起草 ADR-0001 / ADR-0002** — ADR-0001 含 `BattleState` / `GridPos` / `BoardState` / `UnitState` / `TileState` / FNV-1a 64 位哈希字段顺序 / `BattleStateCloner` / `BattleStateComparer`；ADR-0002 含 `Presenter` 同步契约（`BoardPresenter` / `UnitPresenterRegistry` / `BattleHud` 不持有第二真值 / `PresentationEvent` 失败不改 Core / Command 成功后才播放表现）。原 Major M-C 降级为 Task 02 内交付。
+- [ ] **(e) 【信息项 — 不阻塞】ProjectSettings 模板默认值**（`companyName=DefaultCompany` / Android Bundle ID=`com.UnityTechnologies.com.unity.template.urpblank` / 唯一场景 `SampleScene.unity`）：记录偏差即可，**不**作为 Task 02 进入条件。原 Minor m-b / m-c / m-d 统一降级。用户如需修改可在 Task 02 内一次性批准后由 ui-tools 处理。
+- [ ] **(f) 【信息项 — Task 02 候选】未使用 Packages 清理**（`com.unity.timeline` / `com.unity.visualscripting` / `com.unity.multiplayer.center` / `com.unity.ai.navigation` 4 项是否清理）：非阻塞；如要清理可在 Task 02 内一并处理（属 ProjectSettings 写入）。原 Minor / 信息性 i-a 统一保留为 Task 02 候选。
+- [ ] **(g) 【Planned Gap — Task 02】新分支 `agent/02-project-skeleton` 由 architect 创建**（从 `agent/01-repository-audit` 派生或根据用户裁决从 `origin/main` 派生）；由 xingyuan-architect / xingyuan-gameplay / xingyuan-ui-tools 在该分支协同落地 asmdef + Core 依赖守卫测试 + ADR-0001/0002。
+
+> 重分类对照（Phase C → C-1）：
+> - 原 Major M-A（Unity 版本）= 现 **(b) BLOCKING USER DECISION**
+> - 原 Major M-B（asmdef）= 现 **(c) Planned Gap — Task 02**
+> - 原 Major M-C（ADR）= 现 **(d) Planned Gap — Task 02**
+> - 原 Minor m-b / m-c / m-d（ProjectSettings）= 现 **(e) 信息项**
+> - 原信息性 i-a（依赖清理）= 现 **(f) 信息项**
 
 ### 6.2 Task 02 不在范围（Out of Scope）
 
@@ -614,18 +822,24 @@ D:/AI-Worktrees/Xingyuan/ui-tools   8a3fb1f [agent/ui-tools-bootstrap]
   - Player 编译 1 次：`-batchmode -quit -projectPath ... -buildTarget StandaloneWindows64`
   - 日志：保留 `Editor.log` 全文，存放路径待 architect 指定
 
-### 6.4 已知风险登记（承接 Section 3 + Section 5）
+### 6.4 已知风险登记（Phase C-1 重分类，承接 Section 3 + Section 5 + BatchMode 实测）
+
+> **重分类口径**：用户裁决（2026-07-12 18:51 GMT+8）明确区分 **BLOCKING USER DECISION / Planned Gap（附 Task 号）/ 信息项 / static-only**。原「Major / Minor / 信息性」三级在 Risk 表中同步重命名为「决 / Gap / 信」。
 
 | ID | 风险 | 等级 | 来源 | 缓解策略 |
 |---|---|---|---|---|
-| R1 | Unity 版本裁决未做 → Task 02 进入条件阻塞 | Major | §1.1 / §5.1 | 用户在 Task 02 启动前必选 A/B/C |
-| R2 | ProjectSettings 模板值未清理（companyName / bundle ID / SampleScene-only）→ 后续构建 / manifest 受影响 | Minor | §1.3 / §5.3 | 用户裁决后由 ui-tools 一次性处理 |
-| R3 | 候选依赖未清理（timeline / visualscripting / multiplayer.center / ai.navigation）→ 构建时长 + 测试面拉长 | 信息性 | §3.2 / §5.2 | 用户裁决；Task 02 内一并清理或留至 Task 09 整治 |
-| R4 | push-based 子 Agent 完成事件丢失 → Lead 误判 | 信息性 | 运行经验 | Lead 启用 `subagents list` 兜底确认；不轮询 |
-| R5 | `gh` CLI 不可用 → Issue 关联走 Web 手动 | 信息性 | 环境差异 | Lead 手动记录 Issue 引用；不阻塞开发 |
-| R6 | 主会话 runtime Skill 列表缺 `xingyuan-test-gate` / `xingyuan-dev-workflow` / `xingyuan-determinism-review` → 子 Agent 须自读 | 信息性 | Agent 启动差异 | 子 Agent 用 `read <绝对路径>` 显式加载 SKILL.md |
-| R7 | URP 17.5.0 与 `6000.5.3f1` 的严格「补丁级配套」未由 Unity 包兼容性矩阵验证 | 信息性 | §1.2.1 | Task 02 启动后用 `Package Manager UI` 检查 URP 兼容性报告；如报错，按 R1 联动处理 |
-| R8 | `m_EnterPlayModeOptions: 0`（禁用 Domain Reload）→ PlayMode 测试静态缓存风险 | Minor | §1.3 / §5.3 | Task 02 内 architect 决策是否启用 Reload；QA 准备两条路径下的测试 |
+| R1 | Unity 版本裁决未做 → Task 02 进入条件阻塞 | **决**（BLOCKING USER DECISION） | §1.1 / §5.1 / §6.1(b) | 用户在 Task 02 启动前必选 A/B/C |
+| R2 | asmdef 缺失 → Task 02 主交付物未达成 | **Gap**（Task 02 内由 architect 创建） | §2.1 / §5.5 / §5.6 / §6.1(c) | Task 02 内 architect 创建 5 个 `Starfall.*`；QA 在 §6.3 列测试计划 |
+| R3 | ADR-0001/0002 缺失 → 架构契约空白 | **Gap**（Task 02 内由 architect 起草） | §6.1(d) | Task 02 内 architect 起草；qa 在 §6.3 验命名 / 依赖图 / 哈希协议 |
+| R4 | ProjectSettings 模板值未清理 → 后续构建 / manifest 受影响 | **信**（不阻塞 Task 02） | §1.3 / §5.3 / §6.1(e) | 用户裁决后由 ui-tools 一次性处理；不作为 Task 02 进入条件 |
+| R5 | 候选依赖未清理 → 构建时长 + 测试面拉长 | **信**（Task 02 候选） | §3.2 / §5.2 / §6.1(f) | 用户裁决；Task 02 内一并清理或留至 Task 09 整治 |
+| R6 | push-based 子 Agent 完成事件丢失 → Lead 误判 | **信** | 运行经验 | Lead 启用 `subagents list` 兜底确认；不轮询 |
+| R7 | `gh` CLI 不可用 → Issue 关联走 Web 手动 | **信** | 环境差异 | Lead 手动记录 Issue 引用；不阻塞开发 |
+| R8 | 主会话 runtime Skill 列表缺 `xingyuan-test-gate` / `xingyuan-dev-workflow` / `xingyuan-determinism-review` → 子 Agent 须自读 | **信** | Agent 启动差异 | 子 Agent 用 `read <绝对路径>` 显式加载 SKILL.md |
+| R9 | URP 17.5.0 与 `6000.5.3f1` 的严格「补丁级配套」未由 Unity 包兼容性矩阵验证 | **信** | §1.2.1 / §5.7 | Task 02 启动后用 `Package Manager UI` 检查 URP 兼容性报告；如报错，按 R1 联动处理 |
+| R10 | `m_EnterPlayModeOptions: 0`（禁用 Domain Reload）→ PlayMode 测试静态缓存风险 | **信** | §1.3 / §5.3 | Task 02 内 architect 决策是否启用 Reload；QA 准备两条路径下的测试 |
+| R11 | Unity 6 BatchMode 无 license 噪声污染日志（29 行 Licensing + 1 行 Curl error 42） | **信** | §5.7 N-1 | QA grep 日志时忽略前 100 行与最后 30 行；不作为项目缺陷 |
+| R12 | Test Framework 1.7.0 隐式带 `com.unity.test-framework.performance` 子包 → 引入额外 DLL | **信** | §5.7 N-2 | 仅在显式新建 `Unity.PerformanceTesting` 引用 asmdef 后才参与编译；当前 0 影响 |
 
 ### 6.5 Task 02 启动模板（给 Lead 与 architect）
 
@@ -651,86 +865,121 @@ Gate（依据本 Brief 6.3）:
 
 ---
 
-## 已知偏差与建议（QA 整合 Phase A+B+C）
+## 已知偏差与建议（QA Phase C-1 重写）
 
-> **改写说明**：本节由 `xingyuan-qa` 在 Phase C 整合。来源：architect Phase A+B 已列 7 条 + C3 复核新增条目（Section 1-3 取证充分性、URP 配套软声明）。按等级分类。
+> **重分类口径**（用户裁决 2026-07-12 18:51 GMT+8，已最终生效）：
+> - **BLOCKING USER DECISION** — 仅保留 Unity 版本不一致（6000.5.3f1 vs 文档 Unity 6.3 LTS）；属「Task 02 启动前必须裁决」
+> - **Planned Gap（附 Task 号）** — asmdef 缺失（Task 02）/ SampleScene（Task 15）/ Template 残留（Task 02）
+> - **信息项** — TagManager 空 / Company / Bundle ID / 未使用 Packages / URP 配套软声明 / m_EnterPlayModeOptions / BatchMode license 噪声
+> - **static-only 重声明** — BatchMode 本次跑的是「资产导入 + ScriptAssemblies 编译」非真正的 Player 构建；该维度仍属 static-only
 
-### Major（阻塞 Task 02，必须先解决）
+### 🔴 BLOCKING USER DECISION（唯一保留的阻塞项）
 
-- **M-A. Unity 版本不一致**
+- **U-A. Unity 版本不一致**（原 Major M-A）
   - 实际：`6000.5.3f1`（Unity 6.5 系列 patch 3）— `ProjectSettings/ProjectVersion.txt` L1
   - 文档：`Docs/01 §2` 技术平台 / `Docs/02 §1` 声明 `Unity 6.3 LTS`
-  - 阻塞 Task 02：进入条件 R1
-  - 待裁决：A 文档更新 / B 版本升降 / C 维持并记录
+  - 阻塞 Task 02：进入条件 §6.1(b)
+  - 待裁决：A 文档更新 / B 版本升降 / C 维持并记录到 `docs/KNOWN_LIMITATIONS.md`
+  - **BatchMode 实测确认**：Log L2 `Built from '6000.5/staging' branch; Version is '6000.5.3f1 (c2eb47b3a2a9) revision 12774215'`，实际编译基于 6.5；URP 17.5.0 与之配套编译成功（§5.7 全 run-and-pass）。
 
-- **M-B. 5 个 `Starfall.*` asmdef 全部缺失**
+### 🟡 Planned Gap（依 Task 号跟踪，非阻塞）
+
+- **G-A. 5 个 `Starfall.*` asmdef 全部缺失**（原 Major M-B，§6.1(c)）
   - 实际：0（`Get-ChildItem -Filter *.asmdef` 返回 0 条）
   - 期望（`Docs/02 §3`）：`Starfall.Core` / `Starfall.Data` / `Starfall.Unity` / `Starfall.Tests.EditMode` / `Starfall.Tests.PlayMode`
-  - 阻塞 Task 02：进入条件（5 个 asmdef 是 Task 02 主交付物之一）
-  - 缓解：Task 02 内由 architect 创建；QA 在 6.3 列测试计划
+  - **Track** = Task 02 主交付物，由 architect 创建
+  - **BatchMode 实测确认**：当前 0 asmdef 下 Assembly-CSharp.dll 仍能编译（§5.7 run-and-pass）；Task 02 后 5 个 asmdef 接管编译输出
 
-- **M-C. ADR-0001 / ADR-0002 尚未起草**
-  - 实际：`Docs/ADR/` 目录尚无 ADR 实体（Task 01 不起草 ADR，由用户批准）
-  - 阻塞 Task 02：进入条件（Task 02 内 architect 必须起草）
-  - 范围：见 §6.1 + Phase A+B 交接建议
+- **G-B. ADR-0001 / ADR-0002 尚未起草**（原 Major M-C，§6.1(d)）
+  - 实际：`Docs/ADR/` 目录无 ADR 实体（Task 01 不起草 ADR）
+  - **Track** = Task 02 内 architect 起草
+  - **范围**：ADR-0001 含 `BattleState` / `GridPos` / `BoardState` / `UnitState` / `TileState` / FNV-1a 64 位哈希字段顺序 / `BattleStateCloner` / `BattleStateComparer`；ADR-0002 含 `Presenter` 同步契约
 
-### Minor（非阻塞但应记录）
+- **G-C. Core 依赖守卫测试尚未建立**（原 5.6 结论）
+  - 实际：`Starfall.Core` 程序集未建立 → 无可执行守卫对象
+  - **Track** = Task 02 内由 architect + gameplay 联合建立 `Starfall.Tests.EditMode` 并写守卫测试（参见 §6.3 第 2 条）
+  - **当前 grep 命中**：仅模板脚手架（`Assets/TutorialInfo/Scripts/Readme.cs : ScriptableObject` + `ReadmeEditor.cs : using UnityEditor`），非业务代码，不计入守卫范围
 
-- **m-a. `TagManager.tags` 为空**
-  - 实际：`tags: []`
-  - 影响：业务 Tag（Unit / Anchor / Decree / Objective）需在 Task 03+ 增补
-  - 不阻塞 Task 02（程序集先于 Tag）
+- **G-D. 业务场景与 Tag 系统尚未建立**（原 Minor m-a + m-d）
+  - 实际：`TagManager.tags = []`；`EditorBuildSettings.m_Scenes` 仅含 `SampleScene.unity`
+  - **Track** = 战斗场景 → Task 15；项目业务 Tag（`Unit` / `Anchor` / `Decree` / `Objective`） → Task 03+
 
-- **m-b. `companyName` 仍为 `DefaultCompany`**
-  - 实际：`ProjectSettings.asset` L 「companyName: DefaultCompany」
-  - 影响：最终 bundle metadata；不阻塞编译
-  - 处理：用户裁决后由 ui-tools 修改（属 ProjectSettings 写入）
+- **G-E. URP 17.5.0 补丁级配套软声明**（原信息性 i-d）
+  - 状态：Phase C-1 BatchMode 实证：URP 17.5.0 + 6000.5.3f1 编译成功（§5.7 0 error）。但「严格补丁级配套」未由 Unity 包兼容性矩阵直接验证。
+  - **Track** = Task 02 启动后用 `Package Manager UI` 检查兼容性报告；如失败，按 U-A 联动处理
 
-- **m-c. Android Bundle ID 仍为模板默认**
-  - 实际：`com.UnityTechnologies.com.unity.template.urpblank`
-  - 影响：Android 构建；不阻塞编译
-  - 处理：同 m-b
+- **G-F. 模板脚手架残留**（原信息性 i-b）
+  - 实际：`Assets/TutorialInfo/Scripts/{Readme.cs, ReadmeEditor.cs}` + `Assets/Readme.asset`
+  - **Track** = Task 02 内由 ui-tools 删除（属模板清理）
+  - **BatchMode 实测确认**：残留脚本能干净编译进入 Assembly-CSharp.dll（4608 bytes），不影响基线
 
-- **m-d. 构建场景仅 1 条（`SampleScene.unity`）**
-  - 实际：`EditorBuildSettings.m_Scenes` 单条
-  - 影响：Task 02 不要求战斗场景；Task 06+ 由 gameplay/ui-tools 追加
-  - 不阻塞 Task 02
-
-- **m-e. `m_EnterPlayModeOptions: 0` 禁用 Domain Reload**
-  - 影响：PlayMode 测试静态缓存（`AGENTS.md §11` 确定性可能受影响）
-  - 处理：Task 02 内 architect 决策
-
-### 信息性（可延后）
-
-- **i-a. 候选依赖清理**（4 项）
-  - `com.unity.timeline` / `com.unity.visualscripting` / `com.unity.multiplayer.center` / `com.unity.ai.navigation`
-  - 当前不在 MVP 用途上；与 `AGENTS.md §12` 排除项一致
-  - 处理：用户裁决后由 ui-tools 一次性清理
-
-- **i-b. `Assets/TutorialInfo/` 模板脚手架残留**
-  - 实际：`Readme.cs` + `ReadmeEditor.cs` + `Readme.asset` 为 URP Blank 模板自带
-  - 影响：非业务代码，但污染项目目录
-  - 处理：Task 02 内由 ui-tools 删除（属模板清理）
-
-- **i-c. 模板默认 InputAction 资源未改造**
+- **G-G. 模板默认 InputAction 资源未改造**（原信息性 i-c）
   - 实际：`Assets/InputSystem_Actions.inputactions` 仅含 Player 地图（Move/Look/Attack/Interact/Crouch/Jump/Previous/Next/Sprint）
   - 与 `Docs/02 §17` 输入模式枚举（None / Move / PhaseFlip / Attack / DeployDecree）未建立映射
-  - 处理：Task 05+ 由 ui-tools 改造
+  - **Track** = Task 05+ 由 ui-tools 改造
 
-- **i-d. URP 17.5.0 与 `6000.5.3f1` 的严格「补丁级配套」软声明**
-  - 来源：architect §1.2.1「URP 17.5.0 与 Unity 6000.5.3f1 版本配套」
-  - 状态：未由 Unity 包兼容性矩阵直接验证；属软声明
-  - 处理：Task 02 启动后用 Package Manager UI 检查兼容性报告；如失败，按 M-A 联动处理
+### 🟢 信息项（Non-blocking，记录偏差即可）
 
-### static-only 声明（已声明，本节重述）
+- **I-A. `companyName` 仍为 `DefaultCompany`**（原 Minor m-b，§6.1(e)）
+  - 不影响编译；影响最终 bundle metadata
+  - Task 02 启动**前不要求裁决**；可在 Task 02 内一次性处理
 
-- 本审计为 static-only；未运行 Unity Editor 编译或 EditMode/PlayMode 测试。
-- 「可通过」「已就绪」「0 缺失」「字段正确」等措辞均指静态检查可达，**不含运行时验证**。
-- Task 02 第一动作前应先记录「Editor 打开后 Console Error 基线」（见 §5.4），作为 run-and-pass 证据起点。
+- **I-B. Android Bundle ID 仍为模板默认**（原 Minor m-c，§6.1(e)）
+  - `com.UnityTechnologies.com.unity.template.urpblank`
+  - 不影响编译；影响 Android 构建
+  - 同 I-A 处理路径
+
+- **I-C. 未使用 Packages**（4 项候选清理，原 i-a，§6.1(f)）
+  - `com.unity.timeline` 1.8.12 / `com.unity.visualscripting` 1.9.11 / `com.unity.multiplayer.center` 1.0.1 / `com.unity.ai.navigation` 2.0.13
+  - MVP 不使用；与 `AGENTS.md §12` 排除项一致
+  - **Track** = Task 02 候选（用户裁决后由 ui-tools 一次性清理，或保留至 Task 09 整治）
+  - **BatchMode 实测确认**：这 4 项 DLL 均出现在 `Library/ScriptAssemblies/`（Unity.AI.Navigation.dll, Unity.Timeline.dll, Unity.VisualScripting.*.dll, Unity.Multiplayer.Center.*.dll），确认未被引用且仍产出 DLL；后续清理路径由用户裁决
+
+- **I-D. URP 17.5.0 vs 6000.5.3f1 补丁级配套软声明**（原 i-d）
+  - 同 §G-E，BatchMode 已实证编译成功，此条保留为「Task 02 启动后 Package Manager UI 验证」待办
+
+- **I-E. `m_EnterPlayModeOptions: 0` 禁用 Domain Reload**（原 Minor m-e）
+  - PlayMode 测试可能受静态缓存影响（`AGENTS.md §11` 确定性）
+  - **Track** = Task 02 内 architect 决策
+
+- **I-F. Unity 6 BatchMode 无 license 噪声**（新增 §5.7 N-1）
+  - Log 出现 29 行 `[Licensing::Module]` + 1 行 `Curl error 42: Callback aborted`
+  - 不构成项目错误；为环境属性
+  - **Track** = QA grep 日志时过滤前 100 行 / 最后 30 行；不需修改
+
+- **I-G. Test Framework 隐式 performance 子包**（新增 §5.7 N-2）
+  - `com.unity.test-framework.performance` 自动包含在 `com.unity.test-framework` 1.7.0 内
+  - **Track** = 仅在显式新建 `Unity.PerformanceTesting` 引用 asmdef 后才参与编译；当前 0 影响
+
+### 🟣 static-only 重声明（Phase C-1 边界明确化）
+
+- **业务代码编译 = run-and-pass**（§5.7）：BatchMode 实证 Assembly-CSharp.dll 4608 bytes + Editor.dll 10240 bytes 编译产出，0 compile error。
+- **Player 构建 = static-only**（维度未跑）：本次 `-batchmode -quit -buildTarget StandaloneWindows64` 仅切换活跃 TargetGroup + 触发 ScriptAssemblies 编译，**未调用** `BuildPipeline.BuildPlayer` 也**未带** `-executeMethod <BuildMethod>`，因此无 Player 二进制（`.exe` / `.apk`）产物。需 Task 02 内补做完整 Player 构建以满足「端到端构建验证」。
+- **EditMode / PlayMode 测试 = not-run**（§5.8）：0 项目测试被发现（0 asmdef + 0 Assets/Tests）；且 BatchMode `-quit` 不带 `-runTests`，即便存在测试也不会被执行。
+- **措辞限制**：本审计文中不使用「编译通过」「已就绪」「0 错误」「已验证」等措辞指代 Player 构建维度；以上措辞均限定为「业务 C# 编译维度」「资产导入维度」「Domain Reload 维度」run-and-pass。「Player 完整构建端到端 pass」属 Task 02 后补做。
+
+### 📊 重分类对照表
+
+| 原分类 (Phase C) | 原 ID | 新分类 (C-1) | 新 ID | 处置 |
+|---|---|---|---|---|
+| Major | M-A（Unity 版本） | BLOCKING USER DECISION | U-A | §6.1(b) |
+| Major | M-B（asmdef） | Planned Gap — Task 02 | G-A | §6.1(c) |
+| Major | M-C（ADR） | Planned Gap — Task 02 | G-B | §6.1(d) |
+| Minor | m-a（TagManager 空） | Planned Gap — Task 03+ | G-D | 跟随业务 Tag 任务 |
+| Minor | m-b（companyName） | 信息项 | I-A | §6.1(e) |
+| Minor | m-c（Bundle ID） | 信息项 | I-B | §6.1(e) |
+| Minor | m-d（SampleScene-only） | Planned Gap — Task 15 | G-D | 跟随战斗场景任务 |
+| Minor | m-e（EnterPlayMode） | 信息项 | I-E | Task 02 内决策 |
+| 信息性 | i-a（依赖清理） | 信息项 | I-C | §6.1(f) |
+| 信息性 | i-b（TutorialInfo） | Planned Gap — Task 02 | G-F | 模板清理 |
+| 信息性 | i-c（InputAction） | Planned Gap — Task 05+ | G-G | 输入改造 |
+| 信息性 | i-d（URP 配套） | Planned Gap — Task 02 | G-E | Package Manager UI 验证 |
 
 ---
 
 ## 附录 A：本次仅执行了只读命令清单（Phase A+B）
+
+### Phase A 自检
 
 ### Phase A 自检
 
@@ -806,15 +1055,76 @@ Gate（依据本 Brief 6.3）:
 - ❌ 删除任何文件
 - ❌ 跨 worktree 写入（仅在 architect worktree 内操作）
 
+### Phase C-1 取证 + 写入（xingyuan-qa，2026-07-12 18:53 GMT+8）
+
+**取证件（全部只读 + 仅一次 Unity 进程调用）**：
+
+- `Test-Path Assets/Tests`  → False
+- `(Get-ChildItem -Recurse -Filter *.asmdef | Measure-Object).Count`  → 0
+- `Get-ChildItem -Recurse -Filter *.dll | Where-Object { $_.FullName -like "*Tests*" }`  → 空
+- `Get-ChildItem -Recurse -Directory | Where-Object { $_.Name -like "Starfall*" }`  → 0
+- `Select-String -Path Packages/manifest.json -Pattern "com.unity.test-framework"`  → L10 = `1.7.0`
+- `git grep -nE "(using\s+UnityEngine|using\s+UnityEditor)" Assets/`  → 3 行匹配（均为 TutorialInfo 模板脚手架）
+- `git grep -nE "class\s+\w+\s*:\s*(MonoBehaviour|ScriptableObject)" Assets/`  → 1 行匹配（`Readme : ScriptableObject`）
+- `Select-String -Path Logs\unity-batchmode.log -Pattern "CompileError|Compile error|Compilation failed"`  → 0
+- `Select-String -Path Logs\unity-batchmode.log -Pattern " warning:"`  → 0
+- `Select-String -Path Logs\unity-batchmode.log -Pattern "Test Discovery|DiscoverTests|TestPlan"`  → 0
+- `Get-ChildItem -Path Library\ScriptAssemblies -Filter Assembly-CSharp*.dll`  → Assembly-CSharp.dll 4608B + Editor.dll 10240B
+- `(Get-ChildItem -Path Library\ScriptAssemblies -Filter *.dll | Measure-Object).Count`  → 70
+- `git check-ignore -v Library/ Logs/ UserSettings/ Temp/`  → 全部 covered by `.gitignore` L1/L6/L7/L2
+
+**BatchMode 运行（本次唯一的实质进程调用）**：
+
+- 命令：`Start-Process Unity.exe -ArgumentList "-batchmode -nographics -quit -projectPath D:\AI-Worktrees\Xingyuan\qa -logFile D:\AI-Worktrees\Xingyuan\qa\Logs\unity-batchmode.log -buildTarget StandaloneWindows64"`
+- 退出码：`0`（success）
+- 日志路径：`D:\AI-Worktrees\Xingyuan\qa\Logs\unity-batchmode.log`
+- 日志大小：`2,043,081` 字节（`1.95 MB`），`10,214` 行
+- 进程 PID：30212
+- 总耗时：约 3 分钟（首次资产导入 + 编译）
+
+**写入件**：
+
+- `git fetch . agent/01-repository-audit:agent/01-repository-audit`
+- `git checkout agent/01-repository-audit`
+- `git status`（验证仅 audit doc 可写）
+- `edit Docs/OPENCLAW_REPOSITORY_AUDIT.md`（重写元信息头 + §5.5–§5.8 + §6.1 + §6.4 + 「已知偏差与建议」）
+- `git add Docs/OPENCLAW_REPOSITORY_AUDIT.md`
+- `git commit -m "docs(audit): batchmode baseline + reclassification by xingyuan-qa"` ← **Phase C-1 唯一允许的 commit**
+- `git rev-parse HEAD`（记录 SHA）
+- `git checkout agent/qa-bootstrap`（唯一允许的二次分支切换）
+
+**Phase C-1 禁项自检（未执行任何）**：
+
+- ❌ `git push` / 创建 PR / 合并
+- ❌ 修改 `ProjectSettings/` 任何 `.asset`
+- ❌ 修改 `Packages/manifest.json`
+- ❌ 修改 Unity 版本
+- ❌ 创建任何 `.cs` 业务代码
+- ❌ 创建任何 `.asmdef`
+- ❌ 安装新 Package 或修改依赖
+- ❌ 删除文件
+- ❌ 跨 worktree 写入（仅在 qa worktree 内操作）
+- ❌ 修改 Unity Editor 内部状态（仅 `Start-Process` 调用 + 进程退出后的 gitignored 副作用）
+- ❌ 描述 static-only 为编译通过（已严格区分 run-and-pass / run-and-fail / static-only / not-run / partial-pass）
+
 ---
 
 ## 附录 B：审计元数据
 
-- **审计工作区**：`D:\AI-Worktrees\Xingyuan\architect`
-- **审计时所在 worktree HEAD**：`8a3fb1f feat(skills): add Xingyuan OpenClaw audit skills`
-- **本次 commit**（待 B5 完成后回填）：见 Phase B 报告
+- **审计工作量分布**：
+  - Phase A + B：`D:\AI-Worktrees\Xingyuan\architect`（xingyuan-architect，2026-07-12 上午）
+  - Phase C：`D:\AI-Worktrees\Xingyuan\qa`（xingyuan-qa，2026-07-12 下午）
+- **审计时所在 worktree HEAD**（Phase A 起点）：`8a3fb1f feat(skills): add Xingyuan OpenClaw audit skills`
+- **本审计分支累计提交**：
+  - `b23285e docs(audit): sections 1-3 by xingyuan-architect`
+  - `a6a8629 docs(audit): sections 4-6 by xingyuan-qa`（Phase C 初版）
+  - `Phase C-1 commit`（待 C8 后回填 SHA；本批改加 Section 5.5–5.8 + §6.1/6.4 重分类 + 「已知偏差」整节重写 + 元信息头 + 附录 A/C-1）
+- **唯一额外的 Unity 调用一次**：
+  - `C:\Program Files\Unity\Hub\Editor\6000.5.3f1\Editor\Unity.exe -batchmode -nographics -quit -projectPath D:\AI-Worktrees\Xingyuan\qa -logFile D:\AI-Worktrees\Xingyuan\qa\Logs\unity-batchmode.log -buildTarget StandaloneWindows64`
+  - 退出码 0；日志 2.04 MB；运行一次。
 - **下一阶段建议**：
-  1. QA 接手 Section 4–6（任务包 §3）
-  2. architect 在 Task 02 内起草 ADR-0001 / ADR-0002
-  3. 用户对 §1.1 版本偏差做最终裁决
-  4. 用户对 §3.2 依赖清理候选做最终裁决
+  1. 用户对 §5.1 / §6.1(b) Unity 版本偏差作最终裁决（**BLOCKING USER DECISION**）
+  2. architect 接手 Task 02：创建 5 个 `Starfall.*` asmdef + 起草 ADR-0001 / ADR-0002
+  3. gameplay / ui-tools / qa 联合在 `agent/02-project-skeleton` 分支协同
+  4. Task 02 启动后用 Package Manager UI 验证 URP 17.5.0 × 6000.5.3f1 补丁级配套（§G-E）
+  5. Task 09 修整期对未使用 4 项 Packages 作最终清理裁决（§I-C）
