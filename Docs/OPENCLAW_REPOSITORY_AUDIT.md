@@ -3201,3 +3201,113 @@ agent/08-anchor-and-decree → main 合并策略：   候用户裁决
 | M-19 | agent/08-anchor-and-decree 合并到 main？ | B（与 Task 09+ 一起合） |
 | M-20 | 启动 Task 09（ProjectSettings / Packages 清理候选）？ | A（自动） |
 | M-21 | Task 09 范围？ | A 最小（清理 TutorialInfo + 4 未用 Packages + 修 ProjectSettings 默认值） |
+
+---
+
+## Task 10 Final Gate — Lead Phase E 整合（2026-07-13 00:55 GMT+8）
+> **作者**：xingyuan-lead
+> **上下文**：Task 10 Phase A 由 ui-tools 子会话完成（3m39s，首次 ui-tools 成功）落地 3 commit 到 gent/10-unity-bootstrap。Lead 在 ui-tools worktree 亲测编译 + EditMode 全部 PASS。
+
+### Task 10 Phase A — 实施落地证据
+
+#### A.1 — Presentation Snapshot 层（4 文件 / 104 行）
+- Assets/Starfall/Unity/Presentation/UnitSnapshot.cs（21 行，新建）
+- Assets/Starfall/Unity/Presentation/BoardSnapshot.cs（28 行，含 FromState 工厂）
+- Assets/Starfall/Unity/Presentation/HudSnapshot.cs（24 行，含 FromState 工厂）
+- Assets/Starfall/Unity/Presentation/PresentationEvent.cs（31 行，PresentationEventKind + struct）
+
+#### A.2 — Presenter 接口层（3 文件 / 52 行）
+- Assets/Starfall/Unity/Presentation/IBoardPresenter.cs（13 行）
+- Assets/Starfall/Unity/Presentation/IBattleHud.cs（12 行）
+- Assets/Starfall/Unity/Presentation/IUnitPresenterRegistry.cs（27 行，含 IUnitPresenter + UnitIdKey）
+
+#### A.3 — Unity Bootstrap（1 文件 / 55 行）
+- Assets/Starfall/Unity/BattleBootstrap.cs：MonoBehaviour 入口；从 StreamingAssets/data/battle_default.json 加载 BattleDefinition；创建 BattleRunner；首次渲染 BoardPresenter + BattleHud
+
+#### A.4 — 测试集（1 文件 / 85 行 / 6 [Test]）
+- Assets/Starfall/Tests/EditMode/PresentationTests.cs
+
+#### A.5 — Asmdef 修复
+- Assets/Starfall/Tests/EditMode/Starfall.Tests.EditMode.asmdef：references 追加 "Starfall.Unity"（必要以便测试引用 Starfall.Unity.Presentation 类型）
+
+### Task 10 Phase B — 真实编译 + EditMode 测试（Lead 亲测）
+
+#### B.1 — 编译基线（run-and-pass + 0 warning）
+- 退出码：**0**（Exiting batchmode successfully now!）
+- 日志路径：D:\AI-Worktrees\Xingyuan\ui-tools\Logs\task10-compile.log — **1,968,261 bytes**
+- 总耗时：约 **3 分钟**（首次全量 import + 编译）
+- error CS 次数：**0**
+- warning CS 次数：**0**
+- DLL：
+  - Starfall.Core.dll：**30,720 bytes**（无变化）
+  - Starfall.Data.dll：**13,824 bytes**（无变化）
+  - **Starfall.Unity.dll：10,752 bytes**（✅ 新落地）
+  - Starfall.Tests.EditMode.dll：**30,208 bytes**（vs Task 08 的 27,648；PresentationTests 增量）
+
+#### B.2 — EditMode 测试运行（65 项 / 65 PASS）
+
+- 退出码：**0**（Test run completed. Exiting with code 0 (Ok). Run completed.）
+- testResults.xml：D:\AI-Worktrees\Xingyuan\ui-tools\Logs\task10-editmode-results.xml
+- 总耗时：约 **2 分钟**
+- **test-run 元素属性**：
+  - 	otal=65 passed=65 failed=0 skipped=0 result="Passed"
+  - duration="0.2219793"
+
+#### B.3 — 6 个 Presentation 测试详细结果
+
+| # | 测试名 | 结果 |
+|---|---|---|
+| 1 | BoardSnapshot_FromState_OrdersByYX | ✅ Passed |
+| 2 | HudSnapshot_FromState_ContainsTurnAndPlayer | ✅ Passed |
+| 3 | UnitSnapshot_RoundTrips | ✅ Passed |
+| 4 | UnitIdKey_EqualityByValue | ✅ Passed |
+| 5 | PresentationEvent_StoresFields | ✅ Passed |
+| 6 | IBoardPresenter_InterfaceUsableWithMock | ✅ Passed |
+
+其他 59 测试全部 PASS（4 CoreGuard + 12 Foundation + 9 Command-Pathfinder + 10 Status + 7 Data + 9 Combat + 8 Anchor+Decree）
+
+### Task 10 Gate 判定：✅ **PASS**
+
+| Gate 项 | 期望 | 实测 | 状态 |
+|---|---|---|---|
+| 编译 run-and-pass | exit 0 / 0 error | exit 0 / 0 error / 0 warning | ✅ |
+| Starfall.Unity.dll 生成 | > 0 bytes | 10,752 bytes | ✅ |
+| Presentation 6/6 | 6 passed | 6 passed | ✅ |
+| 累计 65/65 | 59 + 6 = 65 | 65 passed | ✅ |
+| 模板/Packages 未改 | 不动 | 仅 Assets/Starfall/Unity + Tests asmdef | ✅ |
+| BattleBootstrap 不持第二真值 | 符合 ADR-0002 §3 | ✅（仅持 BattleRunner） | ✅ |
+
+### Task 10 Final Commit Chain on gent/10-unity-bootstrap（基于 agent/08-anchor-and-decree@e782420）
+`
+d3bcead  00:50  test(presentation): add PresentationTests with 6 [Test]
+487ee05  00:50  feat(presentation+unity): add IBoardPresenter/IBattleHud/IUnitPresenterRegistry + BattleBootstrap
+a4fba43  00:50  feat(presentation): add Snapshot types (Unit/Board/Hud) + PresentationEvent
+`
+
+3 commits ahead of Task 08
+
+### Task 10 READINESS 状态最终
+`
+Task 10 Gate:                 PASS（6/6 验证项 + 65/65 测试）
+Task 11 READINESS:            READY（Replay / Undo 基于现有 PostStateHash + BattleStateCloner 启动）
+agent/10-unity-bootstrap → main 合并策略：   候用户裁决
+`
+
+### 累计 Starfall.* 资产
+- Core Model/Command/Pathfinding/Status/Combat/Anchor/Decree: 32 .cs
+- Data Definition/Validation/Loading: 8 .cs
+- Unity Presentation + BattleBootstrap: 8 .cs（7 Presentation + 1 Bootstrap）
+- Tests: 8 文件 / 65 [Test]
+- **合计**：48 个业务 .cs + 8 测试集
+
+### 已知限制（不影响 Gate）
+- BattleBootstrap.Awake 通过 Application.streamingAssetsPath 读取 JSON；PlayMode 验证需在 StreamingAssets/data/battle_default.json 放 battle JSON
+- PresentationTests 全部为纯 C# 测试，不依赖 UnityEngine（可在 EditMode 直接跑）
+
+### 下一轮建议（候用户裁决）
+
+| ID | 决策 | Lead 建议 |
+|---|---|---|
+| M-22 | agent/10-unity-bootstrap 合并到 main？ | B（与 Task 11+ 一起合） |
+| M-23 | 启动 Task 11（Replay / Undo）？ | A（自动） |
+| M-24 | Task 11 范围？ | A 最小（CommandRecorder + ReplayPlayer + UndoStack） |
