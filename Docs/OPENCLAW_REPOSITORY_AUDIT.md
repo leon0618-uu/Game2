@@ -3311,3 +3311,108 @@ agent/10-unity-bootstrap → main 合并策略：   候用户裁决
 | M-22 | agent/10-unity-bootstrap 合并到 main？ | B（与 Task 11+ 一起合） |
 | M-23 | 启动 Task 11（Replay / Undo）？ | A（自动） |
 | M-24 | Task 11 范围？ | A 最小（CommandRecorder + ReplayPlayer + UndoStack） |
+
+---
+
+## Task 11 Final Gate — Lead Phase E 整合（2026-07-13 01:08 GMT+8）
+> **作者**：xingyuan-lead
+> **上下文**：Task 11 Phase A 由 gameplay 子会话完成（3m56s）落地 3 commit 到 gent/11-replay-and-undo。Lead 修复 1 处测试断言错误（subagent typo），Phase E 由 Lead 亲测编译 + EditMode 全部 PASS。
+
+### Task 11 Phase A — 实施落地证据
+
+#### A.1 — Replay 层（3 文件 / 84 行）
+- Assets/Starfall/Core/Replay/CommandRecord.cs（21 行，Sequence + Command + Events）
+- Assets/Starfall/Core/Replay/CommandRecorder.cs（23 行，严格顺序追加）
+- Assets/Starfall/Core/Replay/ReplayPlayer.cs（40 行，静态 Replay + ReplayResult + 哈希校验）
+
+#### A.2 — Undo 层（1 文件 / 41 行）
+- Assets/Starfall/Core/Undo/UndoStack.cs（深拷贝 + MaxDepth=50 默认）
+
+#### A.3 — 测试集（1 文件 / 127 行 / 8 [Test]）
+- Assets/Starfall/Tests/EditMode/ReplayAndUndoTests.cs
+
+### Lead 修复
+
+#### Fix 1 — ReplayedCount 断言 typo
+- **现象**：72/73 PASS，ReplayPlayer_ProducesIdenticalHash 失败
+- **根因**：subagent 写 Assert.AreEqual(2, result.ReplayedCount) 配注释 // 1 record，自相矛盾；实际 ReplayedCount=1（1 record replayed once）
+- **修复**：commit 1bf8cf8 改为 Assert.AreEqual(1, result.ReplayedCount)
+- **commit SHA**：1bf8cf8
+
+### Task 11 Phase B — 真实编译 + EditMode 测试（Lead 亲测）
+
+#### B.1 — 编译基线（run-and-pass + 0 warning）
+- 退出码：**0**
+- 日志路径：D:\AI-Worktrees\Xingyuan\gameplay\Logs\task11-compile.log — **1,969,064 bytes**
+- 总耗时：约 **3 分钟**
+- error CS 次数：**0**
+- warning CS 次数：**0**
+- DLL：
+  - Starfall.Core.dll：**33,792 bytes**（vs Task 10 的 30,720；Replay + Undo 增量）
+  - Starfall.Data.dll：13,824 bytes（无变化）
+  - Starfall.Unity.dll：10,752 bytes（无变化）
+  - Starfall.Tests.EditMode.dll：**32,768 bytes**（vs Task 10 的 30,208；ReplayAndUndoTests 增量）
+
+#### B.2 — EditMode 测试运行（73 项 / 73 PASS）
+- 退出码：**0**
+- testResults.xml：D:\AI-Worktrees\Xingyuan\gameplay\Logs\task11-editmode-rerun.xml
+- 总耗时：约 **2 分钟**
+- **test-run 元素属性**：
+  - 	otal=73 passed=73 failed=0 skipped=0 result="Passed"
+
+#### B.3 — 8 个 Replay+Undo 测试详细结果
+
+| # | 测试名 | 结果 |
+|---|---|---|
+| 1 | CommandRecorder_AddsRecords | ✅ Passed |
+| 2 | CommandRecorder_SequenceIncrements | ✅ Passed |
+| 3 | ReplayPlayer_ProducesIdenticalHash | ✅ Passed（修复后） |
+| 4 | ReplayPlayer_DetectsHashMismatch | ✅ Passed |
+| 5 | UndoStack_PushAndPop | ✅ Passed |
+| 6 | UndoStack_DeepCopyPreventsMutation | ✅ Passed |
+| 7 | UndoStack_RespectsMaxDepth | ✅ Passed |
+| 8 | UndoStack_TryUndoOnEmptyReturnsFalse | ✅ Passed |
+
+其他 65 测试全部 PASS（4 CoreGuard + 12 Foundation + 9 Command-Pathfinder + 10 Status + 7 Data + 9 Combat + 8 Anchor+Decree + 6 Presentation）
+
+### Task 11 Gate 判定：✅ **PASS**
+
+| Gate 项 | 期望 | 实测 | 状态 |
+|---|---|---|---|
+| 编译 run-and-pass | exit 0 / 0 error | exit 0 / 0 error / 0 warning | ✅ |
+| Starfall.Core.dll 含 Replay+Undo | > 30720 | 33,792 bytes | ✅ |
+| Replay+Undo 8/8 | 8 passed | 8 passed | ✅ |
+| 累计 73/73 | 65 + 8 = 73 | 73 passed | ✅ |
+| 模板/Packages 未改 | 不动 | 仅 Assets/Starfall/Core/{Replay,Undo} + Tests | ✅ |
+
+### Task 11 Final Commit Chain on gent/11-replay-and-undo（基于 agent/10-unity-bootstrap@53c54e8）
+`
+1bf8cf8  01:05  fix(test): correct ReplayedCount assertion from 2 to 1 (matches '1 record' comment)
+77baf87  00:57  test(replay+undo): add ReplayAndUndoTests with 8 [Test]
+9bf1408  00:57  feat(undo): add UndoStack with deep-copy + max-depth
+4e63273  00:57  feat(replay): add CommandRecord + CommandRecorder + ReplayPlayer
+`
+
+4 commits ahead of Task 10
+
+### Task 11 READINESS 状态最终
+`
+Task 11 Gate:                 PASS（5/5 验证项 + 73/73 测试）
+Task 12 READINESS:            READY（确定性 Replay 文件格式 + 序列化）
+agent/11-replay-and-undo → main 合并策略：   候用户裁决
+`
+
+### 累计 Starfall.* 资产
+- Core: 36 .cs（32 Task 03-08 + 4 Replay/Undo）
+- Data: 8 .cs
+- Unity: 8 .cs
+- Tests: 9 文件 / 73 [Test]
+- **合计**：52 个业务 .cs + 9 测试集
+
+### 下一轮建议（候用户裁决）
+
+| ID | 决策 | Lead 建议 |
+|---|---|---|
+| M-25 | agent/11-replay-and-undo 合并到 main？ | B（与 Task 12+ 一起合） |
+| M-26 | 启动 Task 12（Replay 文件 JSON 持久化）？ | A（自动） |
+| M-27 | Task 12 范围？ | A 最小（Replay 序列化 + 反序列化 + 跨平台字节序稳定） |
