@@ -13,6 +13,8 @@ namespace Starfall.Core.Command
         UnitPhaseInverted = 6,
         DecreeApplied = 7,
         DecreeExpired = 8,
+        UnitFell = 9,           // 新增
+        UnitCrushed = 10,        // 新增
     }
 
     /// <summary>
