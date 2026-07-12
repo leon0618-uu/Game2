@@ -135,7 +135,7 @@ namespace Starfall.Tests.EditMode
         [Test]
         public void ReadFile_MissingThrows()
         {
-            Assert.Throws<DefinitionException>(() =>
+            Assert.Throws<ReplayException>(() =>
                 ReplayCodec.ReadFile(Path.Combine(Path.GetTempPath(), "nonexistent_" + System.Guid.NewGuid().ToString("N") + ".json")));
         }
     }

@@ -6,8 +6,6 @@ using Starfall.Core.Command;
 using Starfall.Core.Combat;
 using Starfall.Core.Model;
 using Starfall.Core.Status;
-using Starfall.Data;
-using Starfall.Data.Definition;
 
 namespace Starfall.Core.Replay
 {
@@ -37,10 +35,10 @@ namespace Starfall.Core.Replay
 
         public static ReplayFile ReadFile(string path)
         {
-            if (!File.Exists(path)) throw new DefinitionException("Replay file not found", path, "$", null);
+            if (!File.Exists(path)) throw new ReplayException("Replay file not found", path);
             var text = File.ReadAllText(path);
             var file = JsonSerializer.Deserialize<ReplayFile>(text, Options);
-            if (file == null) throw new DefinitionException("Deserialized to null", path, "$", null);
+            if (file == null) throw new ReplayException("Deserialized to null", path);
             return file;
         }
 
