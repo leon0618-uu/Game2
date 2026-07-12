@@ -2592,3 +2592,65 @@ f2d800f feat(pathfinder): add BFSPathfinder (4-neighbor, deterministic)
 - 唯一 commit：`docs(audit): task 04 phase B evidence by xingyuan-qa`（SHA 见本节末）
 - 退出状态：head 已切回 `agent/03-core-foundation`；`git status --short` = clean
 
+
+---
+
+## Task 04 Final Gate — Lead Phase E 整合（2026-07-12 23:12 GMT+8）
+> **作者**：xingyuan-lead
+> **上下文**：Task 04 Phase A 由 gameplay 子会话实施（子会话上报失败但 3 commits 实际全部落地）。**qa Phase B 子会话** 7m34s 实测：编译 run-and-pass + 25/25 EditMode PASS。本节为最终 Gate 判定。
+
+### Task 04 Phase E.1 — Gate 判定：✅ **PASS**
+
+| Gate 项 | 期望 | 实测 | 状态 |
+|---|---|---|---|
+| 编译 run-and-pass | exit 0 / 0 error | exit 0 / 0 error / 0 warning / Starfall.Core.dll 17,920 B (+4,608 B vs Task 03) | ✅ |
+| Core 守卫 4/4 | 4 passed | 4 passed (1.111+0.664+1.427+0.780 ms) | ✅ |
+| Foundation 12/12 | 12 passed | 12 passed | ✅ |
+| Command-Pathfinder 9/9 | 9 passed | 9 passed (incl. BFS 直路/绕障/不可达/确定性 + MoveCommand 成功/Blocked 拒绝/位置错配拒绝 + EndTurn 切换/玩家错配拒绝) | ✅ |
+| 零玩法增量 | 0 业务 .cs 错误 | 8 个纯 Core .cs + 1 个测试集 | ✅ |
+| 模板/Packages 未改 | 不动 ProjectSettings / Packages | 仅 Docs + Assets/Starfall/Core | ✅ |
+
+**合计 25/25 EditMode PASS / 0 failed**
+
+### Task 04 Phase E.2 — 交付物（agent/04-command-and-pathfinder，4 commits ahead of Task 03）
+
+| SHA | 时间 | 内容 |
+|---|---|---|
+| 92b4193 | 22:43 | feat(command): Command 层 6 .cs（ICommand / MoveCommand / EndTurnCommand / CommandExecutor / BattleEvent / CommandResult） |
+| 2d800f | 22:43 | feat(pathfinder): BFSPathfinder（4 邻居、下左右上 AGENTS.md §11 确定性顺序） |
+| 16feb37 | 22:44 | test(command): CommandAndPathfinderTests 9 [Test] |
+| 24541c8 | 23:11 | docs(audit): qa Phase B 证据 + 失误披露（编码失误透明记录） |
+
+### Task 04 Phase E.3 — Deviation 1：gameplay 子会话上报失败但 commits 落地
+- **现象**：gameplay 子会话 993f4b60 上报 status="failed" at 1m47s（疑似 LLM 超时而非代码失败）
+- **实测**：3 个 commit（92b4193 / f2d800f / 16feb37）全部按预期落地，分支状态正确
+- **决策**：继续推进 Phase B；qa 编译 + 25/25 PASS 兜底
+- **影响**：零影响；后续 gameplayer 子会话超时需视为代码 commit 可能仍正确落地，qa 验证兜底
+
+### Task 04 Phase E.4 — Deviation 2：qa Phase B 文件编码失误 + 透明披露
+- **现象**：qa 第一次写 evidence 时使用 [IO.File]::WriteAllText（默认 codepage 读取），UTF-8 中文被错误转换为系统 codepage，文件损坏
+- **修复**：git checkout HEAD -- Docs/OPENCLAW_REPOSITORY_AUDIT.md 从 HEAD 恢复，再用 [.NET StreamWriter + UTF-8 no BOM + CRLF→LF 规范化] 重写追加 191 行
+- **披露**：qa 主动将失误写入 audit doc B.5 节
+- **影响**：零影响；最终 commit 含干净 evidence；透明披露已落地
+
+### Task 04 READINESS 状态最终
+`
+Task 04 Gate:                 PASS（25/25 测试 + 编译 run-and-pass）
+Task 05 READINESS:            READY
+agent/04 → main 合并策略：       M-6=B（等 Task 04/05 完成后一并合）
+`
+
+### 下一轮建议（按 M-6=B 直接启动 Task 05）
+
+Task 05 范围建议：Status 系统（ApplyStatus / RemoveStatus / TickEndTurn）+ Burn（燃烧）+ Root（定身）+ Phase inversion（相位翻转触发）+ StatusInstance Id 稳定性测试。包含：
+- StatusEffectDefinition（name / kind / duration / params）
+- StatusKind enum（Burn / Root / Slow / ...）
+- StatusInstance（id / kind / remainingTurns / sourceUnitId）
+- BattleState.Statuses 容器（按 StatusId 升序排）
+- ApplyStatusCommand / RemoveStatusCommand
+- TickEndTurnCommand（回合末推进 statuses，剩余回合归零则移除）
+- 单元测试 ≥ 8 个（Status 排序 / Apply / Remove / Tick / Phase 翻转 / Burn 扣血 / Root 阻断移动）
+
+实施 Agent：gameplay；验证 Agent：qa。Phase E 由 Lead 执行。
+
+Lead 决策：按用户 22:40 GMT+8 指示"减少询问、任务启动/派发直接执行、按建议执行"，本轮 Task 05 不再发询问，立即派单。
