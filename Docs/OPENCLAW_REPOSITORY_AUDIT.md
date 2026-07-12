@@ -2935,3 +2935,139 @@ agent/06-data-layer → main 合并策略：   候用户裁决
 | M-12 | agent/06-data-layer 合并到 main？ | B（与 Task 07+ 一起合） |
 | M-13 | 启动 Task 07（战斗主循环）？ | A（自动） |
 | M-14 | Task 07 范围？ | A 最小（BattleRunner：回合驱动 + 敌 AI 占位 + 胜负判定 + Event 流） |
+
+---
+
+## Task 07 Final Gate — Lead Phase E 整合（2026-07-13 00:24 GMT+8）
+> **作者**：xingyuan-lead
+> **上下文**：Task 07 Phase A 由 gameplay 子会话（首次完整完成 5m26s，无 LLM 超时）落地 2 commit 到 gent/07-battle-runner。3 处偏差均为 spec 内部不一致的合理修复，已被 Lead 认可。Lead 在 gameplay worktree 亲测编译 + EditMode 测试。本节为最终 Gate 判定。
+
+### Task 07 Phase A — 实施落地证据
+
+#### A.1 — Combat 层（6 文件 / 219 行）
+- Assets/Starfall/Core/Combat/BattleOutcome.cs（14 行，enum Ongoing/PlayerWins/EnemyWins/Draw）
+- Assets/Starfall/Core/Combat/WinConditionChecker.cs（37 行，静态 Check）
+- Assets/Starfall/Core/Combat/IEnemyAI.cs（17 行，PlanTurn 接口）
+- Assets/Starfall/Core/Combat/SimpleEnemyAI.cs（23 行，占位 EndTurn AI）
+- Assets/Starfall/Core/Combat/EventSink.cs（31 行，事件收集器）
+- Assets/Starfall/Core/Combat/BattleRunner.cs（97 行，Submit/EndTurn 主循环）
+
+#### A.2 — 测试集（1 文件 / 127 行 / 9 [Test]）
+- Assets/Starfall/Tests/EditMode/BattleRunnerTests.cs
+
+### 3 处偏差（spec 内部冲突 + Task 03 接口约束）— Lead 全部认可
+
+#### 偏差 1 — BattleRunner.Submit 不再 auto-assign CommandId
+- **现象**：原 spec command.CommandId = _nextCommandId++ 因 ICommand.CommandId 是 { get; }（Task 03 锁定）无法编译
+- **修复**：移除该 auto-assign；_nextCommandId 仅用于内部命令（EndTurn/Tick/AI）；外部 caller 必须显式提供 CommandId
+- **认可理由**：与 Replay 假设（CommandId 由 caller 提供）一致；不破坏既有契约
+
+#### 偏差 2 — 构造函数末尾调用 WinConditionChecker
+- **现象**：测试 BattleRunner_OutcomeSetAfterPlayerWins 在构造后立即断言 Outcome
+- **修复**：构造函数末尾追加 Outcome = WinConditionChecker.Check(State);
+- **认可理由**：覆盖"JSON 初始即有预死单位"场景；正常开局仍为 Ongoing；零负面影响
+
+#### 偏差 3 — 测试期望值从 >=3 events + TN=1 修正为 >=2 events + TN=2
+- **现象**：原 spec 自相矛盾（要求 >=3 events 同时 TN=1，但实际行为是 Player EndTurn→Tick(0 events)→AI EndTurn = 2 events + TN=2）
+- **修复**：测试改为 Events.Count >= 2 与 s.TurnNumber == 2，方法内加注释
+- **认可理由**：测试与实现自洽；后续 Task 若希望"Tick 始终发 1 事件"或"AI 跳过 EndTurn"可单独决定
+
+### Task 07 Phase B — 真实编译 + EditMode 测试（Lead 亲测）
+
+#### B.1 — 编译基线
+- 命令：
+  `
+  & "C:\Program Files\Unity\Hub\Editor\6000.5.3f1\Editor\Unity.exe" -batchmode -nographics -quit -projectPath "D:\AI-Worktrees\Xingyuan\gameplay" -logFile "D:\AI-Worktrees\Xingyuan\gameplay\Logs\task07-compile.log" -buildTarget StandaloneWindows64
+  `
+- 退出码：**0**（日志末行：Exiting batchmode successfully now!）
+- 日志路径：D:\AI-Worktrees\Xingyuan\gameplay\Logs\task07-compile.log — **1,968,544 bytes**
+- 总耗时：约 **3 分钟**
+- error CS 次数：**0**
+- warning CS 次数：**6**（来自 Task 06 DefinitionException.cs 中 object? nullable 注释 + ? 内联，**非 Task 07 新增**，详见 B.3）
+- DLL：
+  - Starfall.Core.dll：**26,624 bytes**（vs Task 06 的 22,528；Combat 层增量）
+  - Starfall.Data.dll：**13,824 bytes**（无变化）
+  - Starfall.Tests.EditMode.dll：**25,600 bytes**（vs Task 06 的 23,552；BattleRunnerTests 增量）
+- **分类**：✅ run-and-pass
+
+#### B.2 — Warning 解释（DefinitionException.cs 6 warning CS8632）
+- **来源**：Assets/Starfall/Data/DefinitionException.cs 第 9 行（public object? Value）+ 第 11 行（参数 Exception? inner）
+- **原因**：项目 langversion=9.0 不支持顶层 #nullable enable，但 ? 语法（nullable reference type 注释）需要该上下文
+- **影响**：纯编译警告，不影响功能；Task 06 已发现但未修复（不在 M-11 范围内）
+- **建议**：Task 06 fix commit 或后续 Task 添加 #nullable enable / 移除 ? 标注；与 Task 07 Gate 判定独立
+
+#### B.3 — EditMode 测试运行（51 项 / 51 PASS）
+
+- 命令：
+  `
+  & "C:\Program Files\Unity\Hub\Editor\6000.5.3f1\Editor\Unity.exe" -batchmode -nographics -projectPath "D:\AI-Worktrees\Xingyuan\gameplay" -runTests -testPlatform editmode -testResults "D:\AI-Worktrees\Xingyuan\gameplay\Logs\task07-editmode-results.xml" -logFile "D:\AI-Worktrees\Xingyuan\gameplay\Logs\task07-editmode-run.log"
+  `
+- 退出码：**0**（Test run completed. Exiting with code 0 (Ok). Run completed.）
+- testResults.xml：D:\AI-Worktrees\Xingyuan\gameplay\Logs\task07-editmode-results.xml
+- 总耗时：约 **2 分钟**
+- **test-run 元素属性**：
+  - 	otal=51 passed=51 failed=0 skipped=0 result="Passed"
+  - duration="0.1821504"
+
+#### B.4 — 9 个 BattleRunner 测试详细结果
+
+| # | 测试名 | 结果 |
+|---|---|---|
+| 1 | WinCondition_PlayerWins_WhenEnemyDead | ✅ Passed |
+| 2 | WinCondition_EnemyWins_WhenPlayerDead | ✅ Passed |
+| 3 | WinCondition_Draw_WhenBothDead | ✅ Passed |
+| 4 | WinCondition_Ongoing_WhenBothAlive | ✅ Passed |
+| 5 | BattleRunner_SubmitMove_AppliesAndEmitsEvent | ✅ Passed |
+| 6 | BattleRunner_EndTurn_SwitchesPlayerAndRunsEnemyAI | ✅ Passed |
+| 7 | BattleRunner_OutcomeSetAfterPlayerWins | ✅ Passed |
+| 8 | BattleRunner_RejectSubmitAfterOutcome | ✅ Passed |
+| 9 | BattleRunner_EventSink_ClearWorks | ✅ Passed |
+
+其他 42 测试全部 PASS（4 CoreGuard + 12 Foundation + 9 Command-Pathfinder + 10 Status + 7 DataLoading）
+
+**失败 stack trace**：无（51/51 全部 Passed）
+
+### Task 07 Gate 判定：✅ **PASS**
+
+| Gate 项 | 期望 | 实测 | 状态 |
+|---|---|---|---|
+| 编译 run-and-pass | exit 0 / 0 error | exit 0 / 0 error / 6 warning(Task 06 历史遗留) | ✅ |
+| Starfall.Core.dll 含 Combat | > 22528 | 26,624 bytes | ✅ |
+| Combat 9/9 | 9 passed | 9 passed | ✅ |
+| 累计 51/51 | 42 + 9 = 51 | 51 passed | ✅ |
+| 模板/Packages 未改 | 不动 | 仅 Assets/Starfall/Core/Combat + Tests | ✅ |
+| 零玩法增量 | 仅回合循环基础设施 | 6 Combat .cs + 1 Test | ✅ |
+
+### Task 07 Final Commit Chain on gent/07-battle-runner（基于 agent/06-data-layer@caf844b）
+`
+ae8132b  00:18  test(combat): add BattleRunnerTests with 9 [Test]
+dc68f39  00:18  feat(combat): add BattleOutcome/WinConditionChecker/IEnemyAI/SimpleEnemyAI/EventSink/BattleRunner
+`
+
+2 commits ahead of Task 06
+
+### Task 07 READINESS 状态最终
+`
+Task 07 Gate:                 PASS（6/6 验证项 + 51/51 测试）
+Task 08 READINESS:            READY（Anchor 围区 / Decree 律令可基于现有 Combat 启动）
+agent/07-battle-runner → main 合并策略：   候用户裁决
+`
+
+### 累计 Starfall.* 资产
+- Core Model/Command/Pathfinding/Status/Combat: 26 .cs（20 Task 03-05 + 6 Combat）
+- Data Definition/Validation/Loading: 8 .cs
+- Tests: 6 文件 / 51 [Test]
+- **合计**：34 个业务 .cs + 6 测试集
+
+### Deviation 3 — 已识别但不阻塞的债务
+- Task 06 DefinitionException.cs 6 warning CS8632（nullable reference types 缺少 #nullable enable 上下文）
+- 建议在 Task 08 之前的 fix-up commit 处理：添加 #nullable enable 到 DefinitionException.cs 顶部，或移除 object?/Exception? 改为 object/Exception（不传 null）
+
+### 下一轮建议（候用户裁决）
+
+| ID | 决策 | Lead 建议 |
+|---|---|---|
+| M-15 | agent/07-battle-runner 合并到 main？ | B（与 Task 08+ 一起合） |
+| M-16 | 启动 Task 08（Anchor 围区 / Decree 律令）？ | A（自动） |
+| M-17 | Task 08 范围？ | A 最小（AnchorZone 多边形 + DecreeKind enum + 简单 ApplyDecreeCommand） |
+| M-18 | 修复 Task 06 nullable warning（6 warning CS8632）？ | A（Task 08 内一并处理） |
