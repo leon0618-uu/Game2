@@ -128,6 +128,7 @@ namespace Starfall.Tests.EditMode
             var freshState = MakeState();
             var cmds = ReplayCodec.ReconstructCommands(loaded);
             foreach (var c in cmds) CommandExecutor.Run(freshState, c, out _);
+            System.Console.WriteLine($"[DIAG] expected={expected:X16} actual={freshState.PostStateHash:X16} fileFinal={loaded.FinalHash:X16} cmds={cmds.Count}");
             Assert.AreEqual(expected, freshState.PostStateHash);
             File.Delete(tmp);
         }
