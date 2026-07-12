@@ -2804,3 +2804,134 @@ agent/05-status-system → main 合并策略：   候用户裁决
 | M-9 | agent/04 + agent/05 合并到 main？ | B（与 Task 06+ 一起合） |
 | M-10 | 启动 Task 06（Data 层）？ | A（自动） |
 | M-11 | Task 06 范围？ | A 最小（Definition + JSON 加载 + 校验 + BattleState 构建） |
+
+---
+
+## Task 06 Final Gate — Lead Phase E 整合（2026-07-13 00:18 GMT+8）
+> **作者**：xingyuan-lead
+> **上下文**：Task 06 Phase A 由 Lead 亲自补完（runtime 派发的 gameplay 子会话 LLM 超时 2m36s 仅完成 A1 分支创建 + A2 asmdef 验证 + 部分 A3 文件创建但未提交）。Lead 在 gameplay worktree 接管 A2-A5：合并子会话遗留文件、创建剩余 Validator+Loader+Builder+Tests、修复 Starfall.Tests.EditMode.asmdef 缺失 Starfall.Data 引用、运行编译 + 测试。
+
+### Task 06 Phase A — 实施落地证据
+
+#### A.1 — Definition 层（5 文件）
+- Assets/Starfall/Data/Definition/UnitDefinition.cs（UnitId/X/Y/Hp/Phase/Owner）
+- Assets/Starfall/Data/Definition/StatusDefinition.cs（InstanceId/Kind/RemainingTurns/SourceUnitId）
+- Assets/Starfall/Data/Definition/BoardDefinition.cs + TileEntry
+- Assets/Starfall/Data/Definition/BattleDefinition.cs（根定义：TurnNumber/ActivePlayer/Board/Units）
+- Assets/Starfall/Data/DefinitionException.cs（含 FilePath/FieldPath/Value 属性，符合 AGENTS.md §10.2）
+
+#### A.2 — 异常/校验/加载/构建（4 文件）
+- Assets/Starfall/Data/Validation/DefinitionValidator.cs：校验 BattleDefinition 全字段（TurnNumber/Width/Height/Tile 坐标/Tile 状态/Unit 重复 ID/Unit 越界/Hp/Phase/Owner）
+- Assets/Starfall/Data/Loading/JsonBattleLoader.cs：System.Text.Json 反序列化，含 case-insensitive + comment + trailing commas
+- Assets/Starfall/Data/Loading/BattleStateBuilder.cs：确定性 BattleDefinition → BattleState 转换
+
+#### A.3 — 测试集（1 文件 / 7 [Test]）
+- Assets/Starfall/Tests/EditMode/DataLoadingTests.cs：LoadValid/AcceptsValid/RejectsNegativeTurn/RejectsDuplicateUnitId/RejectsOutOfBounds/BuildsMatch/HashDeterministic
+
+#### A.4 — Asmdef 修复
+- Assets/Starfall/Tests/EditMode/Starfall.Tests.EditMode.asmdef：references 追加 "Starfall.Data"（之前仅含 Starfall.Core + TestRunner，编译时 12 个 error CS0234）
+
+### Task 06 Phase B — 真实编译 + EditMode 测试（Lead 亲测）
+
+#### B.1 — 首次编译失败 + 修复
+- **首次编译**：12 个 error CS0234（The type or namespace name 'Data' does not exist in the namespace 'Starfall'）
+- **根因**：Starfall.Tests.EditMode.asmdef 缺 Starfall.Data 引用
+- **修复**：commit 8ca3fac 在 references 数组追加 "Starfall.Data"
+
+#### B.2 — 重编译基线（run-and-pass）
+- 命令：
+  `
+  & "C:\Program Files\Unity\Hub\Editor\6000.5.3f1\Editor\Unity.exe" -batchmode -nographics -quit -projectPath "D:\AI-Worktrees\Xingyuan\gameplay" -logFile "D:\AI-Worktrees\Xingyuan\gameplay\Logs\task06-recompile.log" -buildTarget StandaloneWindows64
+  `
+- 退出码：**0**（日志末行：Exiting batchmode successfully now!）
+- 日志路径：D:\AI-Worktrees\Xingyuan\gameplay\Logs\task06-recompile.log — **1,968,188 bytes**
+- 总耗时：约 **3 分钟**
+- error CS 次数：**0**
+- warning CS 次数：**0**
+- **Starfall.Core.dll**：22,528 bytes
+- **Starfall.Data.dll**：**13,824 bytes**（✅ 新落地）
+- **Starfall.Tests.EditMode.dll**：**23,552 bytes**（vs Task 05 的 17,920；新增 7 DataLoadingTests）
+- **分类**：✅ run-and-pass
+
+#### B.3 — EditMode 测试运行（42 项 / 42 PASS）
+
+- 命令：
+  `
+  & "C:\Program Files\Unity\Hub\Editor\6000.5.3f1\Editor\Unity.exe" -batchmode -nographics -projectPath "D:\AI-Worktrees\Xingyuan\gameplay" -runTests -testPlatform editmode -testResults "D:\AI-Worktrees\Xingyuan\gameplay\Logs\task06-editmode-results.xml" -logFile "D:\AI-Worktrees\Xingyuan\gameplay\Logs\task06-editmode-run.log"
+  `
+- 退出码：**0**（日志末行：Test run completed. Exiting with code 0 (Ok). Run completed.）
+- testResults.xml：D:\AI-Worktrees\Xingyuan\gameplay\Logs\task06-editmode-results.xml
+- 总耗时：约 **2 分钟**
+- **test-run 元素属性**：
+  - 	otal=42 passed=42 failed=0 skipped=0 result="Passed"
+  - duration="0.1989467"
+
+#### B.4 — 7 个 DataLoading 测试详细结果
+
+| # | 测试名 | 结果 |
+|---|---|---|
+| 1 | JsonBattleLoader_LoadValid | ✅ Passed |
+| 2 | Validator_AcceptsValid | ✅ Passed |
+| 3 | Validator_RejectsNegativeTurn | ✅ Passed |
+| 4 | Validator_RejectsDuplicateUnitId | ✅ Passed |
+| 5 | Validator_RejectsOutOfBounds | ✅ Passed |
+| 6 | BattleStateBuilder_BuildsMatch | ✅ Passed |
+| 7 | BattleStateBuilder_HashDeterministic | ✅ Passed |
+
+其他 35 测试全部 PASS（4 CoreGuard + 12 Foundation + 9 Command-Pathfinder + 10 Status）
+
+**失败 stack trace**：无（42/42 全部 Passed）
+
+### Task 06 Gate 判定：✅ **PASS**
+
+| Gate 项 | 期望 | 实测 | 状态 |
+|---|---|---|---|
+| 编译 run-and-pass | exit 0 / 0 error | exit 0 / 0 error / 0 warning | ✅ |
+| Starfall.Data.dll 生成 | > 0 bytes | 13,824 bytes | ✅ |
+| Data 加载 7/7 | 7 passed | 7 passed | ✅ |
+| 累计 42/42 | 35 + 7 = 42 | 42 passed | ✅ |
+| 模板/Packages 未改 | 不动 | 仅 Assets/Starfall/Data + Tests asmdef 1 行 | ✅ |
+| 零玩法增量 | 4 Def + 1 Exception + 1 Validator + 1 Loader + 1 Builder + 1 Test | ✅ | ✅ |
+
+### Deviation 1 — Task 06 Phase A 由 Lead 补完
+- **现象**：runtime 派发的 gameplay 子会话（35922104）LLM 超时（2m36s），仅完成 A1 分支创建 + A2 asmdef 验证 + 部分 Definition 文件创建（未提交）
+- **决策**：Lead 在 gameplay worktree 接管 A2-A5：合并子会话遗留 untracked 文件 + 创建剩余 Validator/Loader/Builder/Tests + 3 个 commit
+- **合规性**：仅创建任务包授权范围内的文件
+- **影响**：3 个 commit 全部成功落地
+
+### Deviation 2 — 修复 Test asmdef 缺 Starfall.Data 引用
+- **现象**：首次编译失败 12 个 error CS0234（DataLoadingTests.cs 找不到 Starfall.Data）
+- **根因**：原 Task 02 创建的 Starfall.Tests.EditMode.asmdef references 仅含 Starfall.Core + TestRunner，Task 06 引入 Starfall.Data 后未追加
+- **修复**：commit 8ca3fac 在 references 数组追加 "Starfall.Data"
+- **影响**：后续 Task 添加新 dll 引用时需类似更新（建议在 Task 02 README 中记录约定）
+
+### Task 06 Final Commit Chain on gent/06-data-layer（基于 agent/05-status-system@f15ef39）
+`
+8ca3fac  00:13  fix(test-asmdef): add Starfall.Data reference for DataLoadingTests
+2568ca4  00:08  feat(data): add DefinitionValidator + JsonBattleLoader + BattleStateBuilder
+591a9d3  00:08  test(data): add DataLoadingTests with 7 [Test] (load/validate/dup/bounds/build/hash)
+295e1a7  00:07  feat(data): add 4 Definition types + DefinitionException (filePath/fieldPath/value)
+`
+
+4 commits ahead of Task 05
+
+### Task 06 READINESS 状态最终
+`
+Task 06 Gate:                 PASS（6/6 验证项 + 42/42 测试）
+Task 07 READINESS:            READY（战斗主循环 / 回合驱动可基于现有 Command 系统启动）
+agent/06-data-layer → main 合并策略：   候用户裁决
+`
+
+### 累计 Starfall.* 资产
+- Core Model/Command/Pathfinding/Status: 20 .cs
+- Data Definition/Validation/Loading: 8 .cs（4 Definition + 1 Exception + 1 Validator + 1 Loader + 1 Builder）
+- Tests: 5 文件 / 42 [Test]
+- **合计**：28 个业务 .cs + 5 测试集
+
+### 下一轮建议（候用户裁决）
+
+| ID | 决策 | Lead 建议 |
+|---|---|---|
+| M-12 | agent/06-data-layer 合并到 main？ | B（与 Task 07+ 一起合） |
+| M-13 | 启动 Task 07（战斗主循环）？ | A（自动） |
+| M-14 | Task 07 范围？ | A 最小（BattleRunner：回合驱动 + 敌 AI 占位 + 胜负判定 + Event 流） |
