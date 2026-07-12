@@ -3533,3 +3533,104 @@ agent/12-replay-persistence → main 合并策略：   候用户裁决
 | M-28 | agent/12-replay-persistence 合并到 main？ | B（与 Task 13+ 一起合） |
 | M-29 | 启动 Task 13（坠落 / 挤压 / 相位翻转集成）？ | A（自动） |
 | M-30 | Task 13 范围？ | A 最小（FallingCommand + CrushResolver + PhaseFlipValidator） |
+
+---
+
+## Task 13 Final Gate — Lead Phase E 整合（2026-07-13 01:25 GMT+8）
+> **作者**：xingyuan-lead
+> **上下文**：Task 13 Phase A 由 runtime auto-orchestration 派发的 gameplay 子会话完成（4m57s）落地 3 commit 到 gent/13-rules-falling-crush-phase。Lead 在 gameplay worktree 亲测编译 + EditMode 全部 PASS。
+
+### Task 13 Phase A — 实施落地证据
+
+#### A.1 — Rules 层（3 文件 / 117 行）
+- Assets/Starfall/Core/Rules/FallingCommand.cs（46 行，ICommand + 扣 HP；子会话补 using Starfall.Core.Command）
+- Assets/Starfall/Core/Rules/CrushResolver.cs（48 行，CrushOutcome + 按位置分组检测）
+- Assets/Starfall/Core/Rules/PhaseFlipValidator.cs（23 行，RemainingTurns > 0 阻止双跳）
+
+#### A.2 — 修改现有 2 文件
+- Assets/Starfall/Core/Command/BattleEvent.cs：+2 enum（UnitFell = 9, UnitCrushed = 10）
+- Assets/Starfall/Core/Command/ApplyStatusCommand.cs：Execute 入口加 PhaseFlipValidator 检查（PhaseInvert 防双跳）
+
+#### A.3 — 测试集（1 文件 / 91 行 / 7 [Test]）
+- Assets/Starfall/Tests/EditMode/RulesTests.cs
+
+### Task 13 Phase B — 真实编译 + EditMode 测试（Lead 亲测）
+
+#### B.1 — 编译基线（run-and-pass）
+- 退出码：**0**
+- 日志路径：D:\AI-Worktrees\Xingyuan\gameplay\Logs\task13-compile.log — **1,969,876 bytes**
+- 总耗时：约 **3 分钟**
+- error CS 次数：**0**
+- warning CS 次数：**2**（Task 12 ReplayException.cs CS8632 nullable，**非 Task 13 新增**，建议后续 Task 一并修复）
+- DLL：
+  - Starfall.Core.dll：**41,472 bytes**（vs Task 12 的 33,792；Rules 层 +7,680）
+  - Starfall.Data.dll：13,824 bytes
+  - Starfall.Unity.dll：10,752 bytes
+  - Starfall.Tests.EditMode.dll：**36,864 bytes**（vs Task 12 的 32,768；RulesTests 增量）
+
+#### B.2 — EditMode 测试运行（86 项 / 86 PASS）
+- 退出码：**0**
+- testResults.xml：D:\AI-Worktrees\Xingyuan\gameplay\Logs\task13-editmode-results.xml
+- 总耗时：约 **2 分钟**
+- **test-run 元素属性**：
+  - 	otal=86 passed=86 failed=0 skipped=0 result="Passed"
+  - duration="0.2398347"
+
+#### B.3 — 7 个 Rules 测试详细结果
+
+| # | 测试名 | 结果 |
+|---|---|---|
+| 1 | FallingCommand_ReducesHp | ✅ Passed |
+| 2 | FallingCommand_IllegalOnMissingUnit | ✅ Passed |
+| 3 | CrushResolver_DetectsAndDamages | ✅ Passed |
+| 4 | CrushResolver_NoCrushIfSeparated | ✅ Passed |
+| 5 | PhaseFlipValidator_BlocksDoubleFlip | ✅ Passed |
+| 6 | PhaseFlipValidator_AllowsAfterExpiry | ✅ Passed |
+| 7 | CrushResolver_SkipsDeadUnits | ✅ Passed |
+
+其他 79 测试全部 PASS（4 CoreGuard + 12 Foundation + 9 Command-Pathfinder + 10 Status + 7 Data + 9 Combat + 8 Anchor+Decree + 8 Replay+Undo + 6 ReplayCodec + 6 Presentation = 79 ✓）
+
+### Task 13 Gate 判定：✅ **PASS**
+
+| Gate 项 | 期望 | 实测 | 状态 |
+|---|---|---|---|
+| 编译 run-and-pass | exit 0 / 0 error | exit 0 / 0 error / 2 warning(Task 12 遗留) | ✅ |
+| Starfall.Core.dll 含 Rules | > 33792 | 41,472 bytes | ✅ |
+| Rules 7/7 | 7 passed | 7 passed | ✅ |
+| 累计 86/86 | 79 + 7 = 86 | 86 passed | ✅ |
+| 模板/Packages 未改 | 不动 | 仅 Assets/Starfall/Core/Rules + 2 修改 + 1 Test | ✅ |
+
+### Task 13 Final Commit Chain on gent/13-rules-falling-crush-phase（基于 agent/12-replay-persistence@9dde674）
+`
+7309d48  01:21  test(rules): add RulesTests with 7 [Test] (fall/crush/phase-flip)
+30ad270  01:20  feat(command): ApplyStatusCommand checks PhaseFlipValidator before applying PhaseInvert
+666d9cf  01:20  feat(rules): add FallingCommand + CrushResolver + PhaseFlipValidator + BattleEvent UnitFell/UnitCrushed
+`
+
+3 commits ahead of Task 12
+
+### Task 13 READINESS 状态最终
+`
+Task 13 Gate:                 PASS（5/5 验证项 + 86/86 测试）
+Task 14 READINESS:            READY（攻击 Command + 简单 AI + 8x10 地图布局）
+agent/13-rules-falling-crush-phase → main 合并策略：   候用户裁决
+`
+
+### 累计 Starfall.* 资产
+- Core: 39 .cs（36 Task 03-12 + 3 Rules）
+- Data: 8 .cs
+- Unity: 8 .cs
+- Tests: 11 文件 / 86 [Test]
+- **合计**：55 个业务 .cs + 11 测试集
+
+### 已知债务
+- Task 12 ReplayException.cs 2 warning CS8632（nullable）— 后续 Task fix commit
+- FallingCommand 仅扣 HP 未真实移除单位（M-13+ 物理移除）
+
+### 下一轮建议（候用户裁决）
+
+| ID | 决策 | Lead 建议 |
+|---|---|---|
+| M-28 | agent/13-rules-falling-crush-phase 合并到 main？ | B（与 Task 14+ 一起合） |
+| M-29 | 启动 Task 14（攻击 Command + 真实敌 AI）？ | A（自动） |
+| M-30 | Task 14 范围？ | A 最小（AttackCommand + 伤害公式 + ImprovedEnemyAI） |
