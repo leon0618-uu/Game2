@@ -1563,6 +1563,52 @@ Push:     不 Push / 不合并 / 不开始 Task 02
 
 **下一动作（等待用户裁决）**：等待用户对 U-A 的 3 选 1 裁决（A / B / C），以及是否批准进入 Task 02。
 
+### 9.7 U-A Resolution（用户裁决后补记）
+
+**裁决时间**：2026-07-12 20:46 GMT+8
+**裁决选项**：A（文档更新）
+**裁决依据**：URP 17.5.0 + 6000.5.3f1 编译已实测 run-and-pass（§5.7），无需回退 Unity Editor；改 2 处文档字符串远比重装 Editor + 资产 reimport 经济。
+
+**实际变更**（本节对应 commit 由 xingyuan-lead 在本分支落地）：
+
+| 文件 | 行号 | 旧 | 新 |
+|---|---|---|---|
+| `Docs/01_Project_Overview_and_GDD.md` | L33 | `Unity 6.3 LTS` | `Unity 6.5 (6000.5.3f1)` |
+| `Docs/02_Technical_Development_Manual.md` | L6 | `Engine: Unity 6.3 LTS` | `Engine: Unity 6.5 (6000.5.3f1)` |
+
+**U-A 状态**：🔴 → ✅ **RESOLVED**
+
+**未变更的审计历史证据**（保留为 audit-time 快照）：
+
+- §1.1 / §5.1 / §6.1(b) / §9.1 M11 仍记录「文档声明 6.3 LTS vs 实测 6.5」的不一致事实
+- 这是审计方法的正确保留——审计 doc 是「审计时点的事实快照」，不应被事后改写以匹配新现实
+- 当前状态以 §9.7 为准
+
+**新发现的偏差（需用户后续裁决）**：
+
+- **U-B：`AGENTS.md` §1 第 18 行仍有「Unity 6.3 LTS + URP」字样**
+  - 来源：`AGENTS.md` L18
+  - 不一致事实：与已更新的 `Docs/01 §2` / `Docs/02 §1` 不再同步
+  - 建议处置：同 Option A（改为 `Unity 6.5 (6000.5.3f1) + URP`）
+  - **⚠️ 修改 `AGENTS.md` 需用户单独批准**（按 §13.13 安全红线：「修改系统、OpenClaw、Gateway、计划任务或代理配置」需先获得确认）
+  - 由 Lead 标记为 **U-B 待用户裁决**，未自动修复
+
+**9 项联合进入条件状态更新**：
+
+| # | 条件 | 状态 |
+|---|---|---|
+| (a) | Task 01 审计 doc 已落地 | ✅ 已满足 |
+| (b) | 用户裁决 U-A（Unity 版本） | ✅ **已满足（20:46 GMT+8, Option A）** |
+| (c) | 5 个 `Starfall.*` asmdef 由 architect 创建 | 🟡 Planned Gap — Task 02 G-A |
+| (d) | ADR-0001 + ADR-0002 由 architect 起草 | 🟡 Planned Gap — Task 02 G-B |
+| (e) | ProjectSettings 默认值清理 | 🟢 信息项，可启动前裁决 |
+| (f) | 未使用 4 项 Packages 清理裁决 | 🟢 信息项，可启动前裁决 |
+| (g) | `agent/02-project-skeleton` 分支由 architect 派生 | 🟡 Planned Gap，Task 02 启动动作 |
+| (h) | ADR-0001 含 FNV-1a 64 位哈希字段顺序 | 🟡 Planned Gap，Task 02 内合并 |
+| (i) | Core 依赖守卫测试建立 | 🟡 Planned Gap — Task 02 G-C |
+
+**Task 02 READINESS 更新**：`READY WITH CONDITIONS` → `READY WITH CONDITIONS`（**U-A 已解除；剩余 8 项均为 Task 02 内部交付物，不阻塞启动**）。如用户批准进入 Task 02，则按 §6.1 + §9.2.2 联合条件立即起草 Task Package。
+
 ## 已知偏差与建议（QA Phase C-1 重写）
 
 > **重分类口径**（用户裁决 2026-07-12 18:51 GMT+8，已最终生效）：
