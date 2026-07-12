@@ -105,12 +105,11 @@ namespace Starfall.Tests.EditMode
         public void FullRoundTrip_HashMatchesOriginal()
         {
             var s = MakeState();
-            var runner = new BattleRunner(s);
             var path = new List<GridPos> { new GridPos(0, 0), new GridPos(1, 0) };
             var move = new MoveCommand(1, 1, new GridPos(0, 0), new GridPos(1, 0), path);
-            runner.Submit(move);
+            CommandExecutor.Run(s, move, out _);
             var apply = new ApplyStatusCommand(2, 1, StatusKind.Burn, 2, 1);
-            runner.Submit(apply);
+            CommandExecutor.Run(s, apply, out _);
 
             // 捕获
             var rec = new CommandRecorder();
@@ -128,11 +127,6 @@ namespace Starfall.Tests.EditMode
             var freshState = MakeState();
             var cmds = ReplayCodec.ReconstructCommands(loaded);
             foreach (var c in cmds) CommandExecutor.Run(freshState, c, out _);
-            System.Console.WriteLine($"[DIAG] expected={expected:X16} actual={freshState.PostStateHash:X16} fileFinal={loaded.FinalHash:X16} cmds={cmds.Count}");
-            System.Console.WriteLine($"[DIAG] s.TN={s.TurnNumber} s.NSID={s.NextStatusInstanceId} s.Units={s.Units.Count} s.Units[0].Pos={s.Units[0].Pos} s.Statuses={s.Statuses.Count}");
-            System.Console.WriteLine($"[DIAG] f.TN={freshState.TurnNumber} f.NSID={freshState.NextStatusInstanceId} f.Units={freshState.Units.Count} f.Units[0].Pos={freshState.Units[0].Pos} f.Statuses={freshState.Statuses.Count}");
-            foreach (var st in s.Statuses) System.Console.WriteLine($"[DIAG] s.st Kind={st.Kind} RT={st.RemainingTurns} Inst={st.InstanceId} Src={st.SourceUnitId}");
-            foreach (var st in freshState.Statuses) System.Console.WriteLine($"[DIAG] f.st Kind={st.Kind} RT={st.RemainingTurns} Inst={st.InstanceId} Src={st.SourceUnitId}");
             Assert.AreEqual(expected, freshState.PostStateHash);
             File.Delete(tmp);
         }
