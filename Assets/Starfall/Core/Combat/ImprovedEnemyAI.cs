@@ -59,11 +59,13 @@ namespace Starfall.Core.Combat
             else if (chosenEnemy != null && chosenTarget != null)
             {
                 var pf = new BFSPathfinder();
-                var path = pf.FindPath(state.Board, chosenEnemy.Pos, chosenTarget.Pos);
-                if (path != null && path.Count >= 2)
+                var fullPath = pf.FindPath(state.Board, chosenEnemy.Pos, chosenTarget.Pos);
+                if (fullPath != null && fullPath.Count >= 2)
                 {
-                    var nextPos = path[1];
-                    yield return new MoveCommand(cmdId++, chosenEnemy.UnitId, chosenEnemy.Pos, nextPos, path);
+                    var nextPos = fullPath[1];
+                    // MoveCommand 要求 path[last] == to，故构造 2 点路径 [from, to]
+                    var stepPath = new List<GridPos> { chosenEnemy.Pos, nextPos };
+                    yield return new MoveCommand(cmdId++, chosenEnemy.UnitId, chosenEnemy.Pos, nextPos, stepPath);
                 }
             }
 
