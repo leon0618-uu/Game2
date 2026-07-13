@@ -39,6 +39,19 @@ namespace Starfall.Unity.Presentation
         public static readonly Color HudOutcomeEnemyWins  = new Color(1f, 0.45f, 0.45f, 1f);
         public static readonly Color HudOutcomeDraw       = new Color(1f, 0.85f, 0.3f, 1f);
 
+        // === Task 18 预览高亮（半透明叠加色，叠在 Tile 原色之上） ===
+        // 合法移动落点：青蓝
+        public static readonly Color HighlightLegalMove = new Color(0.20f, 0.85f, 0.95f, 0.45f);
+        // 合法攻击目标：橘红（比 Enemy 单位色更亮以避免混淆）
+        public static readonly Color HighlightAttackTarget = new Color(1.00f, 0.25f, 0.20f, 0.55f);
+        // 坠落预览：警示紫
+        public static readonly Color HighlightFallRisk = new Color(0.85f, 0.20f, 0.95f, 0.45f);
+        // 伤害预览数字：暖白
+        public static readonly Color DamagePreviewText = new Color(1.00f, 0.95f, 0.55f, 1f);
+        // 状态条强调色
+        public static readonly Color HudAccentPhase = new Color(0.55f, 0.85f, 1.00f, 1f);
+        public static readonly Color HudAccentDamage = new Color(1.00f, 0.65f, 0.30f, 1f);
+
         /// <summary>根据 TileState 返回基础色（Phase 无关）。</summary>
         public static Color TileColor(TileState state)
         {
