@@ -332,40 +332,32 @@ namespace Starfall.Unity.Input
 
         private void DoUndo()
         {
-            // ★ Undo 阻塞点：
-            // BattleRunner.State 是只读属性（auto-property with { get; }），
-            // 外部无法直接替换回上一个深拷贝。
+            // ★ Task 21-B Undo 链路打通：
+            // 1. UndoStack.TryUndo 弹出最近一次 Apply 前的 BattleState 快照（深拷贝）；
+            // 2. BattleRunner.RestoreState 内部再次 Clone 一次（双保险）并替换 State、
+            //    清空 EventSink、重算 Outcome；
+            // 3. 当前 mode 不动（玩家可能连续 Undo 多次），下次 Apply 仍走同一套状态机。
             //
-            // 解决路径（需要 Core 协作）：
-            //   方案 A：Core 提供 BattleRunner.RestoreState(BattleState snapshot) — 由 Lead 派 gameplay 添加；
-            //   方案 B：Core 把 BattleRunner.State 改为 { get; private set; } + 加 RestoreState 方法。
-            //
-            // 当前（Task 17 内）：调用 UndoStack.TryUndo 取出快照，存到 _pendingRestoredState，
-            // 等 Lead 派 gameplay 添加 BattleRunner.RestoreState 后，由 InputController.RestoreRunnerState()
-            // 把快照写回 Runner。
-            //
-            // 现阶段的临时行为：弹出快照 + 记录消息 + 重置模式；下一次 Submit 仍在旧 state 上执行，
-            // 直到 Core 暴露 SetState 后再做最终生效。
+            // 历史：Task 17 时 BattleRunner.State 是只读，Undo 只 pop 不写回，
+            // 详见 docs/MAP_SYSTEM_AUDIT.md §5.5 / §6.1。
             if (_undo.TryUndo(out var restored))
             {
-                _pendingRestoredState = restored;
-                _state = _state.WithMessage("[Undo] pending BattleRunner.RestoreState (Core 协作阻塞)");
-                Debug.LogWarning("[InputController] Undo snapshot popped but BattleRunner.State has no setter. " +
-                                 "Need Lead → gameplay to add BattleRunner.RestoreState(BattleState).");
+                try
+                {
+                    _bootstrap.Runner.RestoreState(restored);
+                    _state = _state.WithMessage("[Undo] restored previous BattleState");
+                }
+                catch (System.Exception ex)
+                {
+                    // 极端保护：RestoreState 失败不能让游戏崩。
+                    _state = _state.WithMessage($"[Undo] failed: {ex.Message}");
+                    Debug.LogError($"[InputController] BattleRunner.RestoreState failed: {ex}");
+                }
             }
             else
             {
                 _state = _state.WithMessage("[Undo] stack empty");
             }
-        }
-
-        private BattleState _pendingRestoredState;
-        public bool HasPendingRestore => _pendingRestoredState != null;
-        public BattleState ConsumePendingRestore()
-        {
-            var s = _pendingRestoredState;
-            _pendingRestoredState = null;
-            return s;
         }
 
         private static IReadOnlyList<PresentationEvent> BuildPresentationEvents(InputTransition t)
