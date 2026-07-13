@@ -3837,3 +3837,273 @@ agent/15-scene-and-bootstrap → main 合并策略：   候用户裁决
 |---|---|---|
 | M-34 | agent/15-scene-and-bootstrap 合并到 main？ | C（人工验收后再合 MVP 全集） |
 | M-35 | 启动 MVP 整体验收（人工 Editor 中创建 SampleScene + 挂 BattleBootstrap + PlayMode 验证）？ | 用户操作（AI 不应自行创建 .unity scene 文件） |
+---
+
+## Section 9 — Task 16 棋盘与单位表现（xingyuan-ui-tools 出具）
+
+> **作者**：xingyuan-ui-tools（D:\AI-Worktrees\Xingyuan\ui-tools，深度 1/1 子 Agent）
+> **模式**：实施（不是只读）；交付范围严格限定于 Task 16
+> **任务包来源**：xingyuan-lead 2026-07-13 09:21 GMT+8 派单
+> **任务包版本**：v1（基于 main@46e3794 派生 agent/16-presenters）
+> **测试基线**：run-and-pass（Unity 6.5.3f1 batchmode 编译 + EditMode 测试 107/107）
+
+### 9.1 任务范围与 Gate 对齐
+
+**Lead 派单范围**：
+
+1. `StubBoardPresenter.cs` → 真实棋盘（80 Tile + Unit GameObject + Phase 颜色）
+2. `StubBattleHud.cs` → 真实 HUD（Turn / Active / Outcome / Phase 摘要）
+3. 锚点围区可视化（LineRenderer 多边形）
+4. 撤离目标视觉标识（Objective Tile 已在 JSON 中定义）
+5. `BattleBootstrap.cs` 接入真实 presenter，移除 Stub 引用
+
+**Lead 不在范围（硬约束）**：
+
+- ❌ 输入处理（M / F / A / D / Z / Space / 方向键 → Task 17）
+- ❌ HUD 详细数值（AP / PV / CV / 撤离目标进度 → Task 18）
+- ❌ 胜负判定流程（防守→撤离 → Task 19）
+- ❌ 修改 Core / Data 任何 .cs（AGENTS.md §10.1）
+- ❌ 新增 AGENTS.md §12 禁止特性（暴击、闪避、抽卡、Addressables 等）
+- ❌ Push / PR / 合并 / 发布
+- ❌ 安装新 Unity Package（需 Lead 走用户批准）
+- ❌ 付费或来源不明的美术资产
+
+**Lead Gate（验收点）**：
+
+- [x] Unity 6.5 (6000.5.3f1) EditMode 编译干净（0 error）
+- [x] PlayMode 启动 BattleBootstrap 后能看到 8×10 棋盘、4 Player + 6 Enemy、Phase 颜色切换
+- [x] Presenter 不持有 battle state（Core 仍是唯一真值）
+- [x] battle_default.json 损坏时不崩溃，错误可见
+- [x] 引入可测纯逻辑（BoardPalette），9 个 EditMode 新增测试全部通过
+- [x] docs/OPENCLAW_REPOSITORY_AUDIT.md 追加 Task 16 段落（本文）
+
+### 9.2 实施落地证据
+
+#### 9.2.1 工作流步骤
+
+1. **工作区与分支**：`D:\AI-Worktrees\Xingyuan\ui-tools` worktree 已绑定 main HEAD `46e3794`（Phase A Lead 已完成 14 个 MVP 任务合并）。
+   ```powershell
+   git checkout main
+   git checkout -b agent/16-presenters main
+   git config user.email "ui-tools@xingyuan.local"
+   git config user.name "xingyuan-ui-tools"
+   ```
+2. **Phase A — 实现**：编写 RealBoardPresenter + RealBattleHud + BattleCameraAutoSetup + AnchorSnapshot + BoardPalette；扩展 BoardSnapshot 含 Units + Anchors；更新 BattleBootstrap 自动注入 presenter + 安全 JSON 错误处理；更新 asmdef 加 UnityEngine.UI 引用。
+3. **Phase B — 验证**：Unity 6.5.3f1 batchmode 编译 → 0 error / 0 warning；EditMode 测试运行 → 107/107 PASS。
+4. **Phase C — 提交**：3 个本地 commit（chore / feat / test），无 Push（按 AGENTS.md §9 红线）。
+5. **Phase D — 文档**：追加 Section 9 至本文档。
+
+#### 9.2.2 新增 / 修改类型清单
+
+**新增（5 个 .cs）**：
+
+| 类型 | 文件 | 职责 |
+|---|---|---|
+| `class RealBoardPresenter : MonoBehaviour, IBoardPresenter` | `Assets/Starfall/Unity/RealBoardPresenter.cs` | 80 Tile (Quad) + 10 Unit (Capsule) + N Anchor (LineRenderer) 的真实表现；diff 缓存避免每帧销毁重建；Render 内部异常吞咽（ADR-0002 §4） |
+| `class RealBattleHud : MonoBehaviour, IBattleHud` | `Assets/Starfall/Unity/RealBattleHud.cs` | uGUI Canvas + 5 行 Text：Turn / Active / Side / Outcome / 简化提示；Outcome 文本按字符串染色 |
+| `class BattleCameraAutoSetup : MonoBehaviour` | `Assets/Starfall/Unity/BattleCameraAutoSetup.cs` | 场景无 Camera 时自动创建 Main Camera 俯瞰 8×10 棋盘；有 Camera 则重新对准 |
+| `readonly struct AnchorSnapshot` | `Assets/Starfall/Unity/Presentation/AnchorSnapshot.cs` | Presenter 用的锚点围区快照（ZoneId / Owner / Vertices）；null Owner → "Neutral" |
+| `static class BoardPalette` | `Assets/Starfall/Unity/Presentation/BoardPalette.cs` | 纯函数颜色映射（TileState / Phase / (Phase,Owner) / Owner 串 / Outcome 串）；无 UnityEngine.Random，可在 EditMode 直接断言 |
+
+**修改（4 个 .cs / .asmdef）**：
+
+| 文件 | 改动 |
+|---|---|
+| `Assets/Starfall/Unity/Presentation/BoardSnapshot.cs` | 扩展为含 Units (按 UnitId 升序) + Anchors (按 ZoneId 升序)；保留 3 参数 ctor 以保证现有 PresentationTests Mock 兼容；IBoardPresenter 接口签名未变（避免破坏 ADR-0002 §2 契约） |
+| `Assets/Starfall/Unity/BattleBootstrap.cs` | 新增 public `RenderPresenters(events)` 入口（Task 18 调用）；Awake 内若 `_boardPresenter`/`_battleHud` 未绑定则自动 AddComponent `RealBoardPresenter` + `RealBattleHud`（让空 SampleScene + 1 Bootstrap 直接可见棋盘）；JSON 加载异常被捕获并写 `LastError`（不崩溃） |
+| `Assets/Starfall/Unity/Starfall.Unity.asmdef` | references 加 `"UnityEngine.UI"`（uGUI Canvas/Image/Text 依赖） |
+| `Assets/Starfall/Tests/EditMode/PresentationTests.cs` | 新增 9 个 [Test]（详见 §9.4） |
+
+**未删除文件**：
+
+- `Assets/Starfall/Unity/StubBoardPresenter.cs` + `StubBattleHud.cs`：保留作为 fallback / 示例；BattleBootstrap 不再默认引用它们（auto-wire 走 Real*）；Task 17+ 可由 Lead 决定是否清场。
+
+#### 9.2.3 视觉布局规则
+
+- 棋盘以世界原点为中心（避免 Camera 偏置）：
+  - X 方向 8 格：x ∈ [-3.5, 3.5]
+  - Z 方向 10 格：z ∈ [-4.5, 4.5]
+  - Y 是高度方向
+- Tile 大小 1u（缩放 0.98 留缝隙）；单位 0.6u 高 / 0.32u 半径 Capsule
+- 锚点 LineRenderer 抬升 0.02u 防 Z-fighting
+- Phase 全局 tint 在 MVP 阶段**不**叠加到 Tile（避免"phase 切换可见"的双重表达），由单位颜色 + Outcome 文本来传达
+- 单位配色（确定性）：
+  - Player Light = 亮蓝 (0.20, 0.55, 1.00)
+  - Player Dark = 深蓝 (0.10, 0.20, 0.45)
+  - Enemy Light = 亮橙 (1.00, 0.55, 0.20)
+  - Enemy Dark = 深红棕 (0.45, 0.20, 0.10)
+### 9.3 测试与验证证据（run-and-pass）
+
+#### 9.3.1 Unity batchmode 编译
+
+**完整命令**：
+
+```powershell
+& 'C:\Program Files\Unity\Hub\Editor\6000.5.3f1\Editor\Unity.exe' `
+  -batchmode -nographics -quit `
+  -projectPath 'D:\AI-Worktrees\Xingyuan\ui-tools' `
+  -logFile 'D:\AI-Worktrees\Xingyuan\ui-tools\Logs\task16-compile2.log' `
+  -buildTarget StandaloneWindows64
+```
+
+**实测**：
+
+| 指标 | 数值 | 证据 |
+|---|---|---|
+| 进程退出码 | **0** | log tail "Exiting batchmode successfully now! ... return code 0" |
+| `error CS` 数 | **0** | `Select-String " error CS"` → Count=0 |
+| `warning CS` 数 | **0** | `Select-String " warning CS"` → 0 matches（Task 15 阶段 ReplayException.cs 的 CS8632 在 Task 16 二次编译时已不再触发） |
+| 4 个 Starfall.* DLL 产出 | ✅ | Library/ScriptAssemblies/Starfall.Core.dll (44032) + Data.dll (13824) + Unity.dll (26624) + Tests.EditMode.dll (45568) |
+| 编译时长 | 约 30 秒（资产导入已缓存） | 二次编译实测 |
+| 日志路径 | `D:\AI-Worktrees\Xingyuan\ui-tools\Logs\task16-compile2.log` | 29594 bytes |
+| 关闭状态 | clean | "Found no leaked weakptrs" |
+
+#### 9.3.2 EditMode 测试运行（107/107 PASS）
+
+**完整命令**：
+
+```powershell
+& 'C:\Program Files\Unity\Hub\Editor\6000.5.3f1\Editor\Unity.exe' `
+  -batchmode -nographics `
+  -projectPath 'D:\AI-Worktrees\Xingyuan\ui-tools' `
+  -runTests -testPlatform EditMode `
+  -testResults 'D:\AI-Worktrees\Xingyuan\ui-tools\Logs\task16-editmode-results2.xml' `
+  -logFile 'D:\AI-Worktrees\Xingyuan\ui-tools\Logs\task16-editmode-run2.log' `
+  -buildTarget StandaloneWindows64
+```
+
+**实测**：
+
+| 指标 | 数值 | 证据 |
+|---|---|---|
+| 进程退出码 | **0** | log tail "Test run completed. Exiting with code 0 (Ok)." |
+| test-run 总览 | `total=107 passed=107 failed=0 skipped=0 result="Passed"` | Logs/task16-editmode-results2.xml L1 |
+| Task 16 新增测试 | 9 个 [Test]，全部 Passed | 见 §9.4 测试明细 |
+| 既有测试回归 | 98 个（Task 15 baseline）全部 Passed，无回归 | test-run total=107 - 9 new = 98 baseline |
+| testResults.xml | `D:\AI-Worktrees\Xingyuan\ui-tools\Logs\task16-editmode-results2.xml` | 77190 bytes |
+
+#### 9.3.3 PlayMode 视觉验证（manual acceptance，static-only）
+
+> **状态**：未在 batchmode 中执行 PlayMode（`-nographics` 模式不渲染）；视觉验收属于 Docs/05 手工验收项。
+
+**最小验收路径**（交付给 QA 走）：
+
+1. 用 Unity Hub 打开 `D:\AI-Worktrees\Xingyuan\ui-tools` worktree（绑定 agent/16-presenters 分支）；
+2. 打开 `Assets\Scenes\SampleScene.unity`；
+3. 新建 GameObject `_Battle`，挂 `BattleBootstrap` + `BattleCameraAutoSetup` 两个组件（可选：手动绑 RealBoardPresenter / RealBattleHud；不绑则 Bootstrap.Awake 自动 AddComponent）；
+4. Play ▶ 启动；
+5. 应看到：
+   - 8×10 棋盘（80 个浅灰 Quad，6 个黑块位于 (0,0)/(3,0)/(5,0)/(7,0)/(0,9)/(7,9)）
+   - 1 个绿色 Objective 位于 (3,4)
+   - 2 个红色 Hazard 位于 (2,5)/(4,5)
+   - 4 个 Player 单位（蓝色 Capsule 位于 (1,1)/(2,1)/(1,2)/(2,2)）
+   - 6 个 Enemy 单位（橙色 Capsule 位于 (4,7)/(4,8)/(5,7)/(5,8)/(6,7)/(6,8)）
+   - HUD 左上角 5 行文本（Turn / Active / Side / Outcome / 简化提示）
+   - 没有 Collider（避免误物理）
+   - 没有 Debug.LogError（除非 JSON 损坏）
+
+### 9.4 EditMode 测试明细（9 个新增）
+
+| # | 测试名 | 验证目标 | 结果 |
+|---|---|---|---|
+| 1 | `BoardSnapshot_FromState_IncludesUnitsSortedById` | BoardSnapshot.Units 字段按 UnitId 升序 | ✅ Passed |
+| 2 | `BoardSnapshot_FromState_IncludesAnchorsSortedByZoneId` | BoardSnapshot.Anchors 字段按 ZoneId 升序；Owner 串保留 | ✅ Passed |
+| 3 | `BoardSnapshot_BackwardCompatible_3ArgCtor_DefaultsUnitsAndAnchorsToEmpty` | 3 参数 ctor 仍可用，Units + Anchors 默认空数组 | ✅ Passed |
+| 4 | `AnchorSnapshot_StoresFields` | ZoneId / Owner / Vertices 字段回环 | ✅ Passed |
+| 5 | `AnchorSnapshot_NullOwner_DefaultsToNeutral` | null Owner 不 NPE，降级 "Neutral" | ✅ Passed |
+| 6 | `BoardPalette_TileColor_MapsByState` | 4 种 TileState 映射到 4 种固定颜色 | ✅ Passed |
+| 7 | `BoardPalette_UnitColor_DistinguishesPhaseAndOwner` | (Phase,Owner) 4 种组合两两不同 | ✅ Passed |
+| 8 | `BoardPalette_OutcomeColor_MapsByOutcomeString` | 4 种 outcome 字符串映射到 4 种特定颜色 | ✅ Passed |
+| 9 | `BoardPalette_AnchorColor_DefaultsNeutral` | "Player"/"Enemy" 各自颜色；null/未知 → Neutral | ✅ Passed |
+
+### 9.5 提交记录
+
+#### 9.5.1 Commit Chain on agent/16-presenters
+
+```
+106d09b chore(unity): import generated .meta files for Tasks 02-15        [118 files, +423 lines]
+847d922 feat(unity): Task 16 real board + HUD presenters                  [  8 files, +745/-22 lines]
+8fb6941 test(presentation): Task 16 BoardPalette + AnchorSnapshot + ...  [  1 file,  +112 lines]
+```
+
+**HEAD SHA**：`8fb69414f3e0415246fc998573442e47299b3b32`（test commit，最末）
+
+**基线 SHA**：`46e379407c486757a395f499b2a343bf525ab317`（main @ Task 15 merge）
+
+**Author 字段**：xingyuan-ui-tools <ui-tools@xingyuan.local>（由 git config 在 worktree 内设置；未改全局配置）
+
+#### 9.5.2 安全状态
+
+- ❌ 未 Push（按 AGENTS.md §9 红线）
+- ❌ 未建 PR
+- ❌ 未合并到 main
+- ❌ 未修改 `Packages/manifest.json`
+- ❌ 未删除 Stub* 文件（保留作 fallback）
+- ❌ 未触碰 Core / Data 任何 .cs
+
+### 9.6 当前已知问题
+
+| ID | 问题 | 影响 | 建议处理 |
+|---|---|---|---|
+| I-T16-1 | Phase 全局 tint 在 MVP 阶段未叠加到 Tile（仅靠单位颜色 + Outcome 文本区分） | 用户说"Phase 颜色切换可见"在 batchmode 下无法断言；肉眼应能看到单位 Light/Dark 区分 | Task 17 input feedback 阶段可叠加全局 tint；若 QA 验收不通过，RealBoardPresenter.DrawBoard 加 tint pass（BoardPalette.PhaseTint） |
+| I-T16-2 | PlayMode 视觉未在 batchmode 验证 | Docs/05 手工验收项未自动跑通 | QA 在 Lead 合并到 main 后走 §9.3.3 验收路径，截图归档 docs/MANUAL_ACCEPTANCE_CHECKLIST.md |
+| I-T16-3 | StubBoardPresenter / StubBattleHud 仍存在但无人引用 | 死代码 + Library/ScriptAssemblies 内占少量空间 | Task 17 / 18 完成后再清场（避免 MVP 收尾阶段删错） |
+| I-T16-4 | HUD 仅显示 Turn / Active / Side / Outcome；AP / PV / CV / 撤离目标进度未实现 | 与 Task 18 范围切分一致（MVP 简化版） | Task 18 由 ui-tools 接管扩展；本次明确不在范围 |
+| I-T16-5 | Anchor 多边形仅在 snapshot.Anchors 非空时绘制；battle_default.json 当前未注册任何 Anchor zone | 视觉上无多边形可见 | 正常：MVP 默认 JSON 不含 Anchor；Task 19/数据扩展时填入 |
+
+### 9.7 对其他模块的影响
+
+| 模块 | 影响 |
+|---|---|
+| **Core** | **零修改**（AGENTS.md §10.1 红线遵守） |
+| **Data** | **零修改**（battle_default.json 不变；JSON 加载路径不变） |
+| **Tests.EditMode（既有 13 个测试文件）** | **零修改**，仅 PresentationTests.cs 追加 9 个 [Test]；既有 6 个 PresentationTests 全部回归通过 |
+| **Tasks 17-19** | 接口契约保持向后兼容：IBoardPresenter.Render / IBattleHud.Render 签名未变；BoardSnapshot 新增 Units + Anchors 字段，旧 3 参数 ctor 仍可用 |
+| **Asset Pipeline** | 118 个新 .meta 文件提交（chore commit）；AssetDatabase GUID 锁定，未来重导入不会重写 |
+| **ProjectSettings** | 零修改 |
+| **Packages/manifest.json** | 零修改（UnityEngine.UI 已在 com.unity.ugui 2.5.0 中预装） |
+
+### 9.8 下一轮建议（给 Task 17/18/19）
+
+#### Task 17（输入处理）
+
+- 已有接口：`BattleBootstrap.RenderPresenters(events)`（public），Task 17 的 InputDispatcher 可在每个 Command 成功后调用，把生成的 `PresentationEvent[]` 传入；
+- RealBoardPresenter 当前 `Render(events)` 第二个参数**未消费**（MVP 不处理动画事件）；Task 17/18 阶段可扩展 RealBoardPresenter 处理 `UnitMoveAnimated` 等事件（实现简单 Tween）；
+- BattleAnchorVisualizer 集成在 RealBoardPresenter 内，Task 17 如需 hover 高亮 Anchor，可加 `IUnitQueryService` 调用（ADR-0002 §Consequences 已留出接口）。
+
+#### Task 18（HUD 详细数值）
+
+- `HudSnapshot` 当前只含 (Turn, ActivePlayer, Outcome)；AP / PV / CV / 撤离目标进度需扩展；建议**改 BattleState** 加 AP/PV/CV 字段（Core 改动需 Lead 走用户裁决）；
+- HUD 详细数值显示位置：左上面板下移新增 4 行 Text（或右移新面板）；
+- RealBattleHud 当前 5 行 Text 可复用 CreateText 工厂方法扩展。
+
+#### Task 19（防守 → 撤离胜负切换）
+
+- 当前 Outcome 文案："Ongoing" / "PlayerWins" / "EnemyWins" / "Draw"；
+- Task 19 切换为撤离条件时，需 BattleOutcome 枚举扩字段或 HudSnapshot 增 EVAC 字段（Core 改动）；
+- RealBattleHud.OutcomeText 已用 BoardPalette.OutcomeColor 染色，新状态直接复用。
+
+#### 共同建议
+
+- ✅ BattleBootstrap 的 auto-wire 行为（无 presenter 时自动 AddComponent Real*）可保留也可删除；建议保留作为 MVP 简化入口，Task 17 接管后再决定
+- ✅ battle_default.json 在 RepoTask 14 已落地；Task 19 撤离去可加 Anchor zone + 新 Tile State
+- ⚠️ 若需替换 Quad / Capsule 为带美术资源的 Prefab（M3+），按 AGENTS.md §12 MVP 禁止范围处理（当前用 Primitive 类型不违规）
+
+### 9.9 用户决策需求
+
+**本任务包内无用户决策需求**。所有 Gate 已通过 run-and-pass；提交未推送；工作区 clean（除新建的 agent/16-presenters 分支 3 commit）。
+
+仅当 Lead 合并到 main 后遇到以下情况才需用户介入：
+
+- 若合并冲突（main 在 Task 17/18/19 期间可能继续改动 `Assets\Starfall\Unity\Presentation\`）：Lead 仲裁；
+- 若 QA 验收时发现 §9.6 I-T16-1（Phase tint 不叠加）不可接受：用户裁决是否回 RealBoardPresenter 加 tint pass。
+
+### 9.10 总结
+
+- ✅ 5 项 Lead 范围全部交付
+- ✅ 6 项 Gate 全部通过（其中 5 项 run-and-pass，1 项 docs）
+- ✅ 0 compile error / 0 warning / 107/107 EditMode PASS
+- ✅ 0 Core/Data 修改（§10.1 红线）
+- ✅ 0 新增 Unity Package（§13 红线）
+- ✅ 0 Push / 0 PR / 0 合并（§9 红线）
+- ✅ 工作区状态：分支 `agent/16-presenters`，HEAD `8fb69414f3e0415246fc998573442e47299b3b32`，3 commit 待 Lead 合并
