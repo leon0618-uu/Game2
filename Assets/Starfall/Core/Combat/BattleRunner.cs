@@ -89,8 +89,28 @@ namespace Starfall.Core.Combat
                 }
             }
 
-            // 4. 检查胜负
+            // 4. 检查胜负（向后兼容的旧路径 —— 但 Task 19 关卡闭环以 ObjectivePhaseUpdater 为准）
             Outcome = WinConditionChecker.Check(State);
+
+            // 5. 关卡阶段推进（Task 19 关卡闭环）
+            //    - 任意胜负已定 → 锁定 Ended；
+            //    - Guard 阶段且双方都有活单位 → GuardsCompleted++，达到门槛则切 Retreat；
+            //    - Retreat 阶段且所有活 Player 都在 ExitTile 邻接 → 撤离完成 + PlayerWins。
+            if (Outcome == BattleOutcome.Ongoing)
+            {
+                var update = ObjectivePhaseUpdater.Update(State);
+                if (update.advancedToRetreat)
+                    Events.Append(new[] { new BattleEvent(BattleEventKind.ObjectiveAdvanced, 0, null, null) });
+                if (update.retreated)
+                    Events.Append(new[] { new BattleEvent(BattleEventKind.RetreatComplete, 0, null, null) });
+                Outcome = update.outcome;
+            }
+            else
+            {
+                // 胜负已定：ObjectivePhaseUpdater 会强制 Ended；调用以保证阶段字段一致
+                ObjectivePhaseUpdater.Update(State);
+            }
+
             return r1;
         }
     }

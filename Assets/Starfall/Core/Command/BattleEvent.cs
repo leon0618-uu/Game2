@@ -15,6 +15,8 @@ namespace Starfall.Core.Command
         DecreeExpired = 8,
         UnitFell = 9,           // 新增
         UnitCrushed = 10,        // 新增
+        ObjectiveAdvanced = 11, // Task 19: Guard → Retreat 推进
+        RetreatComplete = 12,   // Task 19: 撤离完成（所有 Player 到达 ExitTile 邻接）
     }
 
     /// <summary>

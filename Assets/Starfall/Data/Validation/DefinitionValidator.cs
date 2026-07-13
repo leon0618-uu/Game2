@@ -51,6 +51,24 @@ namespace Starfall.Data.Validation
                 if (!System.Enum.TryParse<Starfall.Core.Model.Owner>(u.Owner, true, out _))
                     throw new DefinitionException("Unit.Owner invalid", filePath, $"$.Units[{i}].Owner", u.Owner);
             }
+
+            // Task 19 关卡闭环字段校验（向后兼容：缺省 = 合法默认）
+            if (def.GuardsRequired.HasValue)
+            {
+                if (def.GuardsRequired.Value < 1 || def.GuardsRequired.Value > 100)
+                    throw new DefinitionException("GuardsRequired must be 1..100", filePath, "$.GuardsRequired", def.GuardsRequired.Value);
+            }
+
+            // ExitTile 必须两个坐标同时设置或同时缺省
+            if (def.ExitTileX.HasValue != def.ExitTileY.HasValue)
+                throw new DefinitionException("ExitTileX and ExitTileY must be set together", filePath, "$.ExitTile", $"({def.ExitTileX},{def.ExitTileY})");
+            if (def.ExitTileX.HasValue)
+            {
+                if (def.ExitTileX.Value < 0 || def.ExitTileX.Value >= def.Board.Width)
+                    throw new DefinitionException("ExitTileX out of bounds", filePath, "$.ExitTile.X", def.ExitTileX.Value);
+                if (def.ExitTileY.Value < 0 || def.ExitTileY.Value >= def.Board.Height)
+                    throw new DefinitionException("ExitTileY out of bounds", filePath, "$.ExitTile.Y", def.ExitTileY.Value);
+            }
         }
     }
 }
