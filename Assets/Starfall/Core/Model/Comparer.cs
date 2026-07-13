@@ -9,6 +9,16 @@ namespace Starfall.Core.Model
             if (a.PostStateHash != b.PostStateHash) return false;
             if (a.TurnNumber != b.TurnNumber) return false;
             if (a.ActivePlayer != b.ActivePlayer) return false;
+            // Task 19 关卡阶段字段：Hash 已经参与混合；此处显式比对以便 Equals 在 Hash 巧合相同时仍正确
+            if (a.CurrentPhase != b.CurrentPhase) return false;
+            if (a.GuardsCompleted != b.GuardsCompleted) return false;
+            if (a.GuardsRequired != b.GuardsRequired) return false;
+            if (a.ExitTile.HasValue != b.ExitTile.HasValue) return false;
+            if (a.ExitTile.HasValue)
+            {
+                if (a.ExitTile.Value.X != b.ExitTile.Value.X) return false;
+                if (a.ExitTile.Value.Y != b.ExitTile.Value.Y) return false;
+            }
             if (a.Board.Width != b.Board.Width) return false;
             if (a.Board.Height != b.Board.Height) return false;
             if (a.Units.Count != b.Units.Count) return false;

@@ -22,6 +22,13 @@ namespace Starfall.Core.Model
             return new BattleState(source.TurnNumber, source.ActivePlayer, newBoard, unitsCopy)
             {
                 // _units 已在构造函数中填好
+                // Task 19 关卡闭环字段：阶段计数 / 门槛 / 撤离格独立拷贝
+                CurrentPhase = source.CurrentPhase,
+                GuardsCompleted = source.GuardsCompleted,
+                GuardsRequired = source.GuardsRequired,
+                ExitTile = source.ExitTile.HasValue
+                    ? new GridPos(source.ExitTile.Value.X, source.ExitTile.Value.Y)
+                    : (GridPos?)null,
             };
         }
     }

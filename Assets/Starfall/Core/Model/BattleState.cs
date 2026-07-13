@@ -30,6 +30,30 @@ namespace Starfall.Core.Model
         /// </summary>
         public int NextStatusInstanceId { get; set; }
 
+        /// <summary>
+        /// 关卡阶段（Task 19 关卡闭环）。默认 <see cref="Starfall.Core.Combat.ObjectivePhase.Guard"/>；
+        /// 完成 <see cref="GuardsRequired"/> 个完整回合后切 <see cref="Starfall.Core.Combat.ObjectivePhase.Retreat"/>；
+        /// 胜负已定后切 <see cref="Starfall.Core.Combat.ObjectivePhase.Ended"/>。
+        /// </summary>
+        public Starfall.Core.Combat.ObjectivePhase CurrentPhase { get; set; } = Starfall.Core.Combat.ObjectivePhase.Guard;
+
+        /// <summary>
+        /// 已完成的防守次数。仅 <see cref="Starfall.Core.Combat.ObjectivePhase.Guard"/> 阶段累加。
+        /// <see cref="GuardsCompleted"/> &gt;= <see cref="GuardsRequired"/> 即推进到 Retreat。
+        /// </summary>
+        public int GuardsCompleted { get; set; } = 0;
+
+        /// <summary>
+        /// 防守次数门槛。MVP 默认 3；BattleDefinition 可覆盖。
+        /// </summary>
+        public int GuardsRequired { get; set; } = 3;
+
+        /// <summary>
+        /// 撤离格（Retreat 目标）。<c>null</c> 表示无撤离目标；MVP 默认 <c>null</c>。
+        /// 推进条件：所有存活 Player 单位均站在 ExitTile 的 4 邻居之一。
+        /// </summary>
+        public GridPos? ExitTile { get; set; } = null;
+
         public BattleState(int turnNumber, Owner activePlayer, BoardState board, IEnumerable<UnitState> units)
         {
             if (turnNumber < 0)
@@ -42,6 +66,10 @@ namespace Starfall.Core.Model
             _anchors = new Starfall.Core.Anchor.AnchorRegistry();
             _decrees = new Starfall.Core.Decree.DecreeRegistry();
             NextStatusInstanceId = 0;
+            CurrentPhase = Starfall.Core.Combat.ObjectivePhase.Guard;
+            GuardsCompleted = 0;
+            GuardsRequired = 3;
+            ExitTile = null;
         }
 
         public void AddUnit(UnitState u)
@@ -79,6 +107,17 @@ namespace Starfall.Core.Model
                 ulong h = Fnv1aOffsetBasis;
                 h = MixInt32(h, TurnNumber);
                 h = MixByte(h, (byte)ActivePlayer);
+                // 4.1 关卡阶段字段（Task 19）
+                h = MixByte(h, (byte)CurrentPhase);
+                h = MixInt32(h, GuardsCompleted);
+                h = MixInt32(h, GuardsRequired);
+                // ExitTile：是否为空 + (X, Y)；空则用 byte 0 占位
+                h = MixByte(h, (byte)(ExitTile.HasValue ? 1 : 0));
+                if (ExitTile.HasValue)
+                {
+                    h = MixByte(h, (byte)ExitTile.Value.X);
+                    h = MixByte(h, (byte)ExitTile.Value.Y);
+                }
                 h = MixByte(h, (byte)Board.Width);
                 h = MixByte(h, (byte)Board.Height);
 
