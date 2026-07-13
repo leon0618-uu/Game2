@@ -49,7 +49,7 @@ namespace Starfall.Unity.Input
                 case MovePlan m:      return BuildMove(m, s);
                 case AttackPlan a:    return BuildAttack(a);
                 case PhaseFlipPlan p: return BuildPhaseFlip(p);
-                case DecreeHoldPlan d:return BuildDecreeHold(d);
+                case DecreeHoldPlan d:return BuildDecreeHold(d, s);
                 default: return null;
             }
         }
@@ -91,17 +91,39 @@ namespace Starfall.Unity.Input
 
         // ===== Decree Hold =====
 
-        private static ICommand BuildDecreeHold(DecreeHoldPlan plan)
+        // 共享 ID 散列规则：Tag(0xD0000000) | OwnerTag | ZoneTag(低 12 位)
+        // 同步到 InputController 的 Decree 注册（现已下沉到此函数）。caller 不再直接写 BattleState。
+        internal const uint DecreeIdTag = 0xD0000000u;
+        internal static uint OwnerTag(Owner o) => o == Owner.Player ? 0x100u : 0x200u;
+
+        /// <summary>
+        /// 由 Plan 算出稳定 DecreeId（确定性；与 BattleStateHash 兼容）。
+        /// 供 InputController 在登记前回放 / 调试 / 撤销使用。
+        /// </summary>
+        public static int ComputeDecreeId(DecreeHoldPlan plan)
+        {
+            uint zoneTag = (uint)(plan.ZoneId & 0x0FFF);
+            return unchecked((int)(DecreeIdTag | OwnerTag(plan.IssuingPlayer) | zoneTag));
+        }
+
+        private static ICommand BuildDecreeHold(DecreeHoldPlan plan, BattleState s)
         {
             // DecreeId 由 caller 提供（确定性）。
             // MVP: 用一个相对稳定的 hash（zoneId + 序号）作为 ID 占位；
             // 实际部署时 Lead / architect 应提供 DecreeId 分配器（Task 19 接入）。
-            const uint Tag = 0xD0000000u;  // 避免与 BattleRunner 内部 id（1..N）和外部 id（1000+）冲突
-            uint ownerTag = plan.IssuingPlayer == Owner.Player ? 0x100u : 0x200u;
-            uint zoneTag = (uint)(plan.ZoneId & 0x0FFF);
-            int decreeId = unchecked((int)(Tag | ownerTag | zoneTag));
+            int decreeId = ComputeDecreeId(plan);
             var decree = new Decree(decreeId, DecreeKind.Hold, plan.ZoneId, remainingTurns: 3, plan.IssuingPlayer);
-            // ApplyDecreeCommand 的 Execute 只发 DecreeApplied 事件；真正的 Decree 注册需 caller 在 Submit 前完成。
+
+            // ★ Core 协作阻塞（Task 17 / ADR-0003 §5 备注）：
+            // Core 的 ApplyDecreeCommand.Execute 只发 DecreeApplied 事件，不会把 Decree 写入 _decrees。
+            // 当前架构约定由 Build 阶段一并 Issue（注释写在 Core/Decree/ApplyDecreeCommand.cs）。
+            // 此处集中负责注册，InputController 不再触碰 BattleState.Decrees，
+            // 满足 AGENTS.md §10.3「Input / Presenter 不直接改写 Core 真值」。
+            // 真正修复方向：Core 在 ApplyDecreeCommand.Execute 内自动 Issue（与 Anchors.Register 同层）。
+            if (s != null)
+            {
+                s.Decrees.Issue(decree);
+            }
             return new ApplyDecreeCommand(NextCommandId(), decree);
         }
 

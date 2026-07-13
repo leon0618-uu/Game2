@@ -329,6 +329,117 @@ namespace Starfall.Tests.EditMode
             Assert.AreEqual(3, zones[0]);
             Assert.AreEqual(7, zones[1]);
         }
+
+        // ===== Task 17 接续补充（gate 验证） =====
+
+        [Test]
+        public void AllKeyBindings_HaveHandler_InSwitch()
+        {
+            // 列出必须存在的所有 InputAction（gate 要求 M/F/A/D/Z/Space/Esc + 方向键）
+            // 通过 ProcessAction 触发这些 action 在 SelectUnit 模式下的副作用（不抛异常 + 返回 InputTransition）。
+            var s = MakeStateWithUnits();
+            var machine = new InputStateMachine();
+            var baseState = new InputState(InputMode.SelectUnit, new GridPos(1, 1), selectedUnitId: 1);
+
+            var cases = new (InputAction action, string label)[]
+            {
+                (InputAction.EnterMove,      "M"),
+                (InputAction.EnterPhaseFlip, "F"),
+                (InputAction.EnterAttack,    "A"),
+                (InputAction.EnterDecree,    "D"),
+                (InputAction.Undo,           "Z"),
+                (InputAction.EndTurn,        "Space"),
+                (InputAction.Cancel,         "Esc"),
+                (InputAction.CursorUp,       "↑"),
+                (InputAction.CursorDown,     "↓"),
+                (InputAction.CursorLeft,     "←"),
+                (InputAction.CursorRight,    "→"),
+            };
+            foreach (var (action, label) in cases)
+            {
+                InputTransition t = null;
+                Assert.DoesNotThrow(() => t = machine.ProcessAction(baseState, action, s),
+                    $"ProcessAction 应当处理键 '{label}' ({action}) 但抛异常");
+                Assert.IsNotNull(t, $"ProcessAction 应当返回 InputTransition（键 '{label}'）");
+                Assert.IsNotNull(t.Next, $"InputTransition.Next 不能为 null（键 '{label}'）");
+            }
+        }
+
+        [Test]
+        public void ComputeDecreeId_IsDeterministic_AndDistinct()
+        {
+            // 同样的 Plan 必须产生同样的 ID；不同 zone 产生不同 ID（Task 17 §「确定性」）。
+            var p1a = new DecreeHoldPlan(zoneId: 3, issuingPlayer: Owner.Player);
+            var p1b = new DecreeHoldPlan(zoneId: 3, issuingPlayer: Owner.Player);
+            var p2  = new DecreeHoldPlan(zoneId: 7, issuingPlayer: Owner.Player);
+            var pE  = new DecreeHoldPlan(zoneId: 3, issuingPlayer: Owner.Enemy);
+
+            int id1a = CommandBuilder.ComputeDecreeId(p1a);
+            int id1b = CommandBuilder.ComputeDecreeId(p1b);
+            int id2  = CommandBuilder.ComputeDecreeId(p2);
+            int idE  = CommandBuilder.ComputeDecreeId(pE);
+
+            Assert.AreEqual(id1a, id1b, "同 (zone, owner) 必须产生同 DecreeId（确定性）");
+            Assert.AreNotEqual(id1a, id2, "不同 zone 应产生不同 DecreeId");
+            Assert.AreNotEqual(id1a, idE, "不同 owner 应产生不同 DecreeId");
+        }
+
+        [Test]
+        public void BuildDecreeHold_IssuesDecreeIntoBattleState()
+        {
+            // 验证 DecreeHold 注册从 InputController 下沉到 CommandBuilder 后依然被正确写入 _decrees。
+            // 这样 InputController 不再直接写 BattleState.Decrees（AGENTS.md §10.3）。
+            var s = MakeStateWithUnits();
+            Assert.AreEqual(0, s.Decrees.DecreesInOrder.Count, "初始 _decrees 应为空");
+
+            var plan = new DecreeHoldPlan(zoneId: 11, issuingPlayer: Owner.Player);
+            int before = s.Decrees.DecreesInOrder.Count;
+            var cmd = CommandBuilder.Build(plan, s);
+
+            Assert.IsNotNull(cmd, "DecreeHold Plan 必须产生 Command");
+            Assert.IsInstanceOf<ApplyDecreeCommand>(cmd);
+            Assert.AreEqual(before + 1, s.Decrees.DecreesInOrder.Count, "Build 后 _decrees 应增长 1");
+
+            var registered = s.Decrees.DecreesInOrder[before];
+            Assert.AreEqual(plan.ZoneId, registered.TargetZoneId);
+            Assert.AreEqual(DecreeKind.Hold, registered.Kind);
+            Assert.AreEqual(Owner.Player, registered.IssuingPlayer);
+            Assert.AreEqual(CommandBuilder.ComputeDecreeId(plan), registered.DecreeId,
+                "Build 内注册的 DecreeId 必须等于 ComputeDecreeId（确定性）");
+        }
+
+        [Test]
+        public void EndTurn_Signal_DoesNotProduceCommands_AndPreservesMode()
+        {
+            // Space 不应清除当前 mode；它只是告诉 caller 去跑 BattleRunner.EndTurn。
+            var s = MakeStateWithUnits();
+            var machine = new InputStateMachine();
+            var start = new InputState(InputMode.MoveTarget, new GridPos(0, 1), selectedUnitId: 1);
+            var t = machine.ProcessAction(start, InputAction.EndTurn, s);
+            Assert.IsTrue(t.ShouldEndTurn);
+            Assert.AreEqual(0, t.Commands.Count);
+            Assert.AreEqual(InputMode.MoveTarget, t.Next.Mode,
+                "EndTurn 不应改变 input mode；只是信号（BattleRunner.EndTurn 内部切 Owner）");
+        }
+
+        [Test]
+        public void CursorMovement_AtTopLeftCorner_AllDirections_StaysClamped()
+        {
+            // (0,0) → 上/左 clamp 在 (0,0)，下/右 正常。
+            var s = MakeStateWithUnits();
+            var machine = new InputStateMachine();
+            var origin = new InputState(InputMode.SelectUnit, new GridPos(0, 0), selectedUnitId: null);
+
+            var up    = machine.ProcessAction(origin, InputAction.CursorUp, s);
+            var left  = machine.ProcessAction(origin, InputAction.CursorLeft, s);
+            var down  = machine.ProcessAction(origin, InputAction.CursorDown, s);
+            var right = machine.ProcessAction(origin, InputAction.CursorRight, s);
+
+            Assert.AreEqual(new GridPos(0, 0), up.Next.Cursor);
+            Assert.AreEqual(new GridPos(0, 0), left.Next.Cursor);
+            Assert.AreEqual(new GridPos(0, 1), down.Next.Cursor);
+            Assert.AreEqual(new GridPos(1, 0), right.Next.Cursor);
+        }
     }
 
     /// <summary>

@@ -226,22 +226,8 @@ namespace Starfall.Unity.Input
             {
                 foreach (var plan in transition.Commands)
                 {
-                    // DecreeHold 是特殊 case：ApplyDecreeCommand 不注册 _decrees，需要 caller 先 Issue
-                    if (plan is DecreeHoldPlan dhp)
-                    {
-                        // 构造 Decree 临时实例以写入注册表；与 CommandBuilder.BuildDecreeHold 的 hash 一致
-                        const uint Tag = 0xD0000000u;
-                        uint ownerTag = dhp.IssuingPlayer == Owner.Player ? 0x100u : 0x200u;
-                        uint zoneTag = (uint)(dhp.ZoneId & 0x0FFF);
-                        int decreeId = unchecked((int)(Tag | ownerTag | zoneTag));
-                        var decree = new Starfall.Core.Decree.Decree(
-                            decreeId,
-                            Starfall.Core.Decree.DecreeKind.Hold,
-                            dhp.ZoneId,
-                            remainingTurns: 3,
-                            dhp.IssuingPlayer);
-                        state.Decrees.Issue(decree);
-                    }
+                    // 注意：DecreeHold 的 _decrees 注册已下沉到 CommandBuilder.BuildDecreeHold，
+                    // InputController 不再直接写 BattleState.Decrees（AGENTS.md §10.3）。
                     var cmd = CommandBuilder.Build(plan, state);
                     if (cmd != null)
                     {
