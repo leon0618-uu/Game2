@@ -19,7 +19,7 @@ namespace Starfall.Core.Combat
     /// </summary>
     public sealed class BattleRunner
     {
-        public BattleState State { get; }
+        public BattleState State { get; private set; }
         public EventSink Events { get; } = new EventSink();
         public BattleOutcome Outcome { get; private set; } = BattleOutcome.Ongoing;
 
@@ -31,6 +31,32 @@ namespace Starfall.Core.Combat
             State = state ?? throw new System.ArgumentNullException(nameof(state));
             _enemyAI = enemyAI ?? new SimpleEnemyAI();
             // 初始判定：覆盖 "JSON 已含预死单位" 场景 —— 一般为 Ongoing
+            Outcome = WinConditionChecker.Check(State);
+        }
+
+        /// <summary>
+        /// 用一个 <see cref="BattleState"/> 快照替换当前 <see cref="State"/>，并清空已积累的
+        /// <see cref="Events"/>。同时重新计算 <see cref="Outcome"/>（覆盖 "Undo 把胜负已定的局面
+        /// 拉回到 Ongoing 阶段" 与 "Undo 重新触发胜负" 两种场景）。
+        ///
+        /// 用途：Task 21-B Undo 链路打通 —— UndoStack 弹出的前序 BattleState 通过本方法
+        /// 写回 BattleRunner，使玩家可真正回退一个 Command 的影响。复制语义：内部对 snapshot
+        /// 再做一次 <see cref="BattleStateCloner.Clone"/>（UndoStack.Push 已经深拷贝过，
+        /// 这里是双保险 —— 调用方传引用也不影响原对象）。
+        ///
+        /// 硬约束（AGENTS.md §10.1）：
+        /// - 不引用 UnityEngine；
+        /// - 不复制玩法规则（胜负判定仍由 <see cref="WinConditionChecker"/> 负责）；
+        /// - 行为可逆：调用方可在新 State 上重新 Submit / EndTurn。
+        /// </summary>
+        /// <param name="snapshot">要恢复到的 BattleState 深拷贝源（不可为 null）。</param>
+        public void RestoreState(BattleState snapshot)
+        {
+            if (snapshot == null) throw new System.ArgumentNullException(nameof(snapshot));
+            State = BattleStateCloner.Clone(snapshot);
+            Events.Clear();
+            // 重新检查胜负：Undo 后的 State 可能是 Ongoing（一般情况）也可能是已结束
+            // （比如从 EndTurn 之后的 PlayerWins 状态回退到未分胜负的局面）。
             Outcome = WinConditionChecker.Check(State);
         }
 
