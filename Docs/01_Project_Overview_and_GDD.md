@@ -30,7 +30,7 @@ Windows PC
 技术平台：
 
 ```text
-Unity 6.3 LTS
+Unity 6.5 (6000.5.3f1)
 Universal Render Pipeline
 C#
 ```

@@ -3,7 +3,7 @@
 ## 1. 技术基线
 
 ```text
-Engine: Unity 6.3 LTS
+Engine: Unity 6.5 (6000.5.3f1)
 Render Pipeline: URP
 Language: C#
 Primary Target: Windows PC
