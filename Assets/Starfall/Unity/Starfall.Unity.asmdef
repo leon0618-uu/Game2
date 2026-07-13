@@ -4,6 +4,7 @@
     "references": [
         "Starfall.Core",
         "Starfall.Data",
+        "Unity.InputSystem",
         "UnityEngine.UI"
     ],
     "includePlatforms": [],

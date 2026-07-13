@@ -62,6 +62,13 @@ namespace Starfall.Unity
                 _battleHud = bh;
                 Debug.Log("[BattleBootstrap] Auto-attached RealBattleHud (Task 16 default).");
             }
+            // Task 17: 若场景内尚未挂 InputController，则自动添加。
+            // InputController 持有自己的 UndoStack + 模式状态机；BattleBootstrap 不需要额外暴露接口。
+            if (FindAnyObjectByType<Starfall.Unity.Input.InputController>() == null)
+            {
+                var ic = gameObject.AddComponent<Starfall.Unity.Input.InputController>();
+                Debug.Log("[BattleBootstrap] Auto-attached InputController (Task 17 default).");
+            }
         }
 
         private void Start()
