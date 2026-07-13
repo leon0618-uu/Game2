@@ -303,6 +303,17 @@ namespace Starfall.Unity.Input
             _bootstrap.RenderPresenters(BuildPresentationEvents(transition));
         }
 
+        // ============================================================
+        // Test / automation entry point
+        // ============================================================
+        /// <summary>
+        /// M-35 demo 自动化入口：把一个 <see cref="InputAction"/> 喂进和真实键盘相同的处理路径。
+        /// 在 <see cref="Apply"/> 之外暴露公开签名，让 PlayMode 测试不依赖反射就能模拟按键；
+        /// 不复制玩法逻辑（仍走 <see cref="_machine"/> + <see cref="CommandBuilder"/> + <see cref="BattleRunner"/>）。
+        /// 由 <c>Starfall.Tests.PlayMode</c> 的 M35DemoScript 调用。
+        /// </summary>
+        public void Press(InputAction action) => Apply(action);
+
         private static bool WillMutateState(InputAction action)
         {
             switch (action)
