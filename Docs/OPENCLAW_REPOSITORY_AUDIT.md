@@ -4120,16 +4120,17 @@ agent/15-scene-and-bootstrap → main 合并策略：   候用户裁决
 #### 10.1.1 本轮新增 commit
 
 - `9cebb68 wip(input): Task 17 partial implementation (lead salvage from failed subagent)` — Lead 在 DNS 失败前手动提交的 WIP commit（既有）
-- （本轮接续补缺将追加 commit，见下）
+- `69207b2 fix(input): Task 17 finalization - decree registration refactor + 5 new tests` — 本轮接续 Agent 提交（新增）
 
 #### 10.1.2 Commit Chain on agent/17-input-and-commands
 
 ```
+69207b2 fix(input): Task 17 finalization - decree registration refactor + 5 new tests   [本轮]
 9cebb68 wip(input): Task 17 partial implementation (lead salvage from failed subagent)   [本轮接续前已存在]
-<NEW>    fix(input): Task 17 finalization - decree registration refactor + 5 new tests     [本轮]
 ```
 
-**HEAD SHA（最终）**：见 git log（`git log --oneline -3`）
+**HEAD SHA（最终）**：`69207b25...`（fix commit，最末）
+**WIP 起点**：`9cebb68`（wip(input) partial implementation）
 **基线 SHA（main @ Task 16 merge）**：`a514e61`
 **Author 字段**：xingyuan-ui-tools <ui-tools@xingyuan.local>（worktree 内 git config 设置）
 
@@ -4262,4 +4263,4 @@ Starfall.Tests.EditMode.StatusSystemTests          10
 - ✅ 0 Core/Data 修改（§10.1 红线）
 - ✅ 0 新增 Unity Package（§13 红线）
 - ✅ 0 Push / 0 PR / 0 合并（§9 红线）
-- ✅ 工作区状态：分支 `agent/17-input-and-commands`，HEAD = WIP `9cebb68` + 本轮 fix commit
+- ✅ 工作区状态：分支 `agent/17-input-and-commands`，HEAD = `69207b2` (fix commit) on top of WIP `9cebb68`
