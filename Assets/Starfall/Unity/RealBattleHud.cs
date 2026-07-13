@@ -6,17 +6,17 @@ using Starfall.Unity.Presentation;
 namespace Starfall.Unity
 {
     /// <summary>
-    /// 真实 HUD 表现（Task 16）：
-    /// - 使用 uGUI Canvas 显示 TurnNumber / ActivePlayer / Outcome / Phase 摘要；
+    /// 真实 HUD 表现（Task 16 + Task 18）：
+    /// - 使用 uGUI Canvas 显示 TurnNumber / ActivePlayer / Outcome / Phase / 派生 HUD 数值；
+    /// - Task 18 接管：AP / PV / CV / 激活单位 / 防守目标 / 伤害预览 / 当前输入模式 + 提示；
     /// - 不持有 BattleState（AGENTS.md §10.3 / ADR-0002 §3）；
-    /// - Render 内部异常吞咽（ADR-0002 §4）；
-    /// - Task 18 之前仅显示简化版：详细数值（AP / PV / CV / 撤离目标进度）由 Task 18 接管。
+    /// - Render 内部异常吞咽（ADR-0002 §4）。
     /// </summary>
     public class RealBattleHud : MonoBehaviour, IBattleHud
     {
         [SerializeField] private int _fontSize = 20;
         [SerializeField] private Vector2 _panelAnchor = new Vector2(0f, 1f); // top-left
-        [SerializeField] private Vector2 _panelSize = new Vector2(380f, 200f);
+        [SerializeField] private Vector2 _panelSize = new Vector2(420f, 320f);
         [SerializeField] private Vector2 _panelOffset = new Vector2(16f, -16f);
 
         private Canvas _canvas;
@@ -24,8 +24,12 @@ namespace Starfall.Unity
         private Text _turnText;
         private Text _playerText;
         private Text _phaseText;
+        private Text _objectiveText;
+        private Text _activeUnitText;
+        private Text _damagePreviewText;
+        private Text _modeText;
+        private Text _messageText;
         private Text _outcomeText;
-        private Text _summaryText;
 
         private HudSnapshot _lastSnapshot;
         private bool _initialized;
@@ -74,22 +78,26 @@ namespace Starfall.Unity
             var bg = panelGo.AddComponent<Image>();
             bg.color = BoardPalette.HudBackground;
 
-            // 3. Texts
-            _turnText    = CreateText(panelGo.transform, "TurnText",   new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f),   new Vector2(  0f, -10f), new Vector2(360f, 36f));
-            _playerText  = CreateText(panelGo.transform, "PlayerText", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f),   new Vector2(  0f, -50f), new Vector2(360f, 36f));
-            _phaseText   = CreateText(panelGo.transform, "PhaseText",  new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f),   new Vector2(  0f, -90f), new Vector2(360f, 36f));
-            _outcomeText = CreateText(panelGo.transform, "OutcomeText",new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f),   new Vector2(  0f, -130f), new Vector2(360f, 36f));
-            _summaryText = CreateText(panelGo.transform, "SummaryText",new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f),   new Vector2(  0f, -170f), new Vector2(360f, 24f));
+            // 3. Texts (Task 18: 9 行布局，y 从 -10 起、步长 -36)
+            _turnText          = CreateText(panelGo.transform, "TurnText",          new Vector2(  0f, -10f), new Vector2(400f, 32f));
+            _playerText        = CreateText(panelGo.transform, "PlayerText",        new Vector2(  0f, -46f), new Vector2(400f, 32f));
+            _phaseText         = CreateText(panelGo.transform, "PhaseText",         new Vector2(  0f, -82f), new Vector2(400f, 32f));
+            _objectiveText     = CreateText(panelGo.transform, "ObjectiveText",     new Vector2(  0f, -118f), new Vector2(400f, 32f));
+            _activeUnitText    = CreateText(panelGo.transform, "ActiveUnitText",    new Vector2(  0f, -154f), new Vector2(400f, 32f));
+            _damagePreviewText = CreateText(panelGo.transform, "DamagePreviewText", new Vector2(  0f, -190f), new Vector2(400f, 32f));
+            _modeText          = CreateText(panelGo.transform, "ModeText",          new Vector2(  0f, -226f), new Vector2(400f, 32f));
+            _messageText       = CreateText(panelGo.transform, "MessageText",       new Vector2(  0f, -256f), new Vector2(400f, 28f));
+            _outcomeText       = CreateText(panelGo.transform, "OutcomeText",       new Vector2(  0f, -290f), new Vector2(400f, 32f));
         }
 
-        private Text CreateText(Transform parent, string name, Vector2 aMin, Vector2 aMax, Vector2 pivot, Vector2 anchoredPos, Vector2 size)
+        private Text CreateText(Transform parent, string name, Vector2 anchoredPos, Vector2 size)
         {
             var go = new GameObject(name);
             go.transform.SetParent(parent, false);
             var rt = go.AddComponent<RectTransform>();
-            rt.anchorMin = aMin;
-            rt.anchorMax = aMax;
-            rt.pivot = pivot;
+            rt.anchorMin = new Vector2(0f, 1f);
+            rt.anchorMax = new Vector2(0f, 1f);
+            rt.pivot = new Vector2(0f, 1f);
             rt.anchoredPosition = anchoredPos;
             rt.sizeDelta = size;
             var t = go.AddComponent<Text>();
@@ -108,15 +116,60 @@ namespace Starfall.Unity
 
         private void UpdateTexts(in HudSnapshot s)
         {
-            _turnText.text    = $"Turn: {s.TurnNumber}";
-            _playerText.text  = $"Active: {s.ActivePlayer}";
-            // Phase 不在 HudSnapshot 中（MVP 简化），占位提示玩家当前阵营的简写
-            _phaseText.text   = $"Active Side: {(s.ActivePlayer == Starfall.Core.Model.Owner.Player ? "Player" : "Enemy")}";
+            // 行 1: Turn
+            _turnText.text = $"Turn: {s.TurnNumber}";
+            _turnText.color = BoardPalette.HudText;
+
+            // 行 2: Active
+            _playerText.text = $"Active: {s.ActivePlayer}";
+            _playerText.color = BoardPalette.HudText;
+
+            // 行 3: PV（当前相位）
+            _phaseText.text = $"PV (Phase): {s.CurrentPhase}";
+            _phaseText.color = BoardPalette.HudAccentPhase;
+
+            // 行 4: 目标
+            _objectiveText.text = s.ObjectiveText;
+            _objectiveText.color = BoardPalette.HudText;
+
+            // 行 5: 激活单位（AP / CV / HP）
+            if (s.ActiveUnit.HasValue)
+            {
+                var u = s.ActiveUnit.Value;
+                _activeUnitText.text =
+                    $"Active Unit #{u.UnitId}: HP {u.Hp}/{u.MaxHp}  AP {u.Ap}  CV {u.Cv}  Pos {u.Pos}";
+                _activeUnitText.color = BoardPalette.HudText;
+            }
+            else
+            {
+                _activeUnitText.text = "Active Unit: (none selected)";
+                _activeUnitText.color = new Color(1f, 1f, 1f, 0.55f);
+            }
+
+            // 行 6: 伤害预览（仅 AttackTarget 模式 + 悬停目标时显示）
+            if (s.DamagePreview.HasValue && s.DamagePreview.Value >= 0)
+            {
+                _damagePreviewText.text = $"Damage Preview: {s.DamagePreview.Value}";
+                _damagePreviewText.color = BoardPalette.HudAccentDamage;
+            }
+            else
+            {
+                _damagePreviewText.text = "Damage Preview: -";
+                _damagePreviewText.color = new Color(1f, 1f, 1f, 0.45f);
+            }
+
+            // 行 7: 当前 Input 模式
+            _modeText.text = $"Input Mode: {s.InputModeHint}";
+            _modeText.color = BoardPalette.HudText;
+
+            // 行 8: 输入提示（LastMessage）
+            _messageText.text = string.IsNullOrEmpty(s.LastInputMessage) ? "(no message)" : s.LastInputMessage;
+            _messageText.fontSize = Mathf.Max(12, _fontSize - 4);
+            _messageText.color = new Color(1f, 1f, 1f, 0.7f);
+
+            // 行 9: Outcome
             _outcomeText.text = $"Outcome: {s.Outcome}";
             _outcomeText.color = BoardPalette.OutcomeColor(s.Outcome);
-            _summaryText.text = "[Task 16 HUD] 详细数值由 Task 18 接管";
-            _summaryText.fontSize = Mathf.Max(12, _fontSize - 6);
-            _summaryText.color = new Color(1f, 1f, 1f, 0.55f);
         }
     }
 }

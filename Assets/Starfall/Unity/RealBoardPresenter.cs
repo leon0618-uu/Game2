@@ -6,10 +6,12 @@ using Starfall.Unity.Presentation;
 namespace Starfall.Unity
 {
     /// <summary>
-    /// 真实棋盘表现（Task 16）：
+    /// 真实棋盘表现（Task 16 + Task 18）：
     /// - 80 个 Tile（Quad）+ 单位（Capsule）+ 锚点多边形（LineRenderer）；
     /// - Tile 颜色随 TileState；
     /// - 单位颜色随 Phase + Owner；
+    /// - Task 18 新增：合法落点 / 攻击目标 / 坠落预览 高亮层（半透明 Quad 叠加）；
+    /// - Task 18 新增：3D TextMesh 伤害数字（攻击模式悬停时显示）；
     /// - 不持有 BattleState 引用（AGENTS.md §10.3 / ADR-0002 §3）；
     /// - Render 内部异常吞咽（ADR-0002 §4）。
     ///
@@ -23,14 +25,23 @@ namespace Starfall.Unity
         [SerializeField] private float _tileSize = 1f;
         [SerializeField] private float _unitHeight = 0.6f;
         [SerializeField] private float _unitRadius = 0.32f;
+        [SerializeField] private float _highlightY = 0.015f;   // 略高于 tile 防 Z-fighting
+        [SerializeField] private float _damageY = 1.0f;        // 数字高度
 
         private Transform _tilesRoot;
         private Transform _unitsRoot;
         private Transform _anchorsRoot;
+        private Transform _highlightsRoot;
+        private Transform _damageRoot;
 
         private TileView[] _tileViews;       // index = y * Width + x
         private readonly Dictionary<int, UnitView> _unitViews = new Dictionary<int, UnitView>();
         private readonly Dictionary<int, LineRenderer> _anchorLines = new Dictionary<int, LineRenderer>();
+        private readonly List<GameObject> _legalHighlightPool = new List<GameObject>();
+        private readonly List<GameObject> _attackHighlightPool = new List<GameObject>();
+        private readonly List<GameObject> _fallHighlightPool = new List<GameObject>();
+        private TextMesh _damageNumberText;
+        private GameObject _damageLabelGo;
 
         // 当前 board 尺寸（用于单位定位回调）
         private int _currentWidth;
@@ -46,6 +57,8 @@ namespace Starfall.Unity
                 DrawBoard(snapshot);
                 DrawUnits(snapshot);
                 DrawAnchors(snapshot);
+                DrawHighlights(snapshot);
+                DrawDamageNumber(snapshot);
             }
             catch (System.Exception ex)
             {
@@ -61,9 +74,11 @@ namespace Starfall.Unity
             if (_initialized) return;
             _initialized = true;
 
-            _tilesRoot    = CreateChild("Tiles");
-            _unitsRoot    = CreateChild("Units");
-            _anchorsRoot  = CreateChild("Anchors");
+            _tilesRoot      = CreateChild("Tiles");
+            _unitsRoot      = CreateChild("Units");
+            _anchorsRoot    = CreateChild("Anchors");
+            _highlightsRoot = CreateChild("Highlights");
+            _damageRoot     = CreateChild("DamageLabels");
         }
 
         private Transform CreateChild(string name)
@@ -251,6 +266,166 @@ namespace Starfall.Unity
                 lr.SetPosition(i, GridToLocal(p.X, p.Y, 0.02f, _currentWidth, _currentHeight));
             }
             lr.startColor = lr.endColor = BoardPalette.AnchorColor(a.Owner);
+        }
+
+        // ============== Task 18: Highlights ==============
+
+        private void DrawHighlights(in BoardSnapshot snapshot)
+        {
+            int legalCount = snapshot.LegalMoves?.Count ?? 0;
+            int attackCount = snapshot.AttackTargets?.Count ?? 0;
+            int fallCount = snapshot.FallPreviews?.Count ?? 0;
+
+            // 1. 合法落点
+            EnsurePoolCount(_legalHighlightPool, legalCount, "LegalHL", BoardPalette.HighlightLegalMove);
+            for (int i = 0; i < legalCount; i++)
+            {
+                var p = snapshot.LegalMoves[i];
+                var go = _legalHighlightPool[i];
+                go.transform.localPosition = GridToLocal(p.X, p.Y, _highlightY, _currentWidth, _currentHeight);
+                go.SetActive(true);
+            }
+            // 2. 攻击目标
+            EnsurePoolCount(_attackHighlightPool, attackCount, "AttackHL", BoardPalette.HighlightAttackTarget);
+            for (int i = 0; i < attackCount; i++)
+            {
+                var p = snapshot.AttackTargets[i].Pos;
+                var go = _attackHighlightPool[i];
+                go.transform.localPosition = GridToLocal(p.X, p.Y, _highlightY, _currentWidth, _currentHeight);
+                go.SetActive(true);
+            }
+            // 3. 坠落预览
+            EnsurePoolCount(_fallHighlightPool, fallCount, "FallHL", BoardPalette.HighlightFallRisk);
+            for (int i = 0; i < fallCount; i++)
+            {
+                var p = snapshot.FallPreviews[i].Pos;
+                var go = _fallHighlightPool[i];
+                go.transform.localPosition = GridToLocal(p.X, p.Y, _highlightY, _currentWidth, _currentHeight);
+                go.SetActive(true);
+            }
+        }
+
+        private void EnsurePoolCount(List<GameObject> pool, int desired, string baseName, Color color)
+        {
+            // 增长
+            while (pool.Count < desired)
+            {
+                var go = GameObject.CreatePrimitive(PrimitiveType.Quad);
+                go.name = $"{baseName}_{pool.Count}";
+                var col = go.GetComponent<Collider>();
+                if (col != null) Object.Destroy(col);
+                go.transform.SetParent(_highlightsRoot, false);
+                go.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+                go.transform.localScale = Vector3.one * _tileSize * 0.85f;
+                var mr = go.GetComponent<MeshRenderer>();
+                var mat = new Material(GetOrCreateHighlightShader());
+                mat.color = color;
+                mr.sharedMaterial = mat;
+                pool.Add(go);
+            }
+            // 同步颜色 + 回收多余
+            for (int i = 0; i < pool.Count; i++)
+            {
+                if (pool[i] == null) continue;
+                if (i < desired)
+                {
+                    var mr = pool[i].GetComponent<MeshRenderer>();
+                    if (mr != null && mr.sharedMaterial != null) mr.sharedMaterial.color = color;
+                    pool[i].SetActive(true);
+                }
+                else
+                {
+                    pool[i].SetActive(false);
+                }
+            }
+        }
+
+        private static Shader _cachedHighlightShader;
+        private static Shader GetOrCreateHighlightShader()
+        {
+            if (_cachedHighlightShader != null) return _cachedHighlightShader;
+            _cachedHighlightShader = Shader.Find("Universal Render Pipeline/Unlit");
+            if (_cachedHighlightShader == null) _cachedHighlightShader = Shader.Find("Unlit/Color");
+            if (_cachedHighlightShader == null) _cachedHighlightShader = Shader.Find("Sprites/Default");
+            if (_cachedHighlightShader == null) _cachedHighlightShader = Shader.Find("Standard");
+            return _cachedHighlightShader;
+        }
+
+        // ============== Task 18: Damage number (3D world text) ==============
+
+        private void DrawDamageNumber(in BoardSnapshot snapshot)
+        {
+            // 仅在 AttackTarget 模式 + 悬停攻击目标时显示数字
+            bool visible = snapshot.InputModeHint == Starfall.Unity.Input.InputMode.AttackTarget
+                           && snapshot.SelectedUnitIdForPreview.HasValue
+                           && snapshot.CursorForPreview.HasValue
+                           && snapshot.AttackTargets != null;
+            int? targetId = null;
+            GridPos cursor = default;
+            if (visible)
+            {
+                cursor = snapshot.CursorForPreview.Value;
+                for (int i = 0; i < snapshot.AttackTargets.Count; i++)
+                {
+                    if (snapshot.AttackTargets[i].Pos == cursor)
+                    {
+                        targetId = snapshot.AttackTargets[i].UnitId;
+                        break;
+                    }
+                }
+            }
+
+            if (!visible || !targetId.HasValue)
+            {
+                if (_damageLabelGo != null) _damageLabelGo.SetActive(false);
+                return;
+            }
+
+            // 渲染伤害数字：TextMesh 不需要 Canvas，兼容 batchmode / PlayMode
+            if (_damageLabelGo == null)
+            {
+                _damageLabelGo = new GameObject("DamageLabel");
+                _damageLabelGo.transform.SetParent(_damageRoot, false);
+                _damageNumberText = _damageLabelGo.AddComponent<TextMesh>();
+                _damageNumberText.fontSize = 64;
+                _damageNumberText.characterSize = 0.4f;
+                _damageNumberText.color = BoardPalette.DamagePreviewText;
+                _damageNumberText.alignment = TextAlignment.Center;
+                _damageNumberText.anchor = TextAnchor.MiddleCenter;
+                _damageNumberText.fontStyle = FontStyle.Bold;
+                var mr = _damageLabelGo.GetComponent<MeshRenderer>();
+                if (mr != null) mr.sharedMaterial = GetOrCreateDefaultMaterial();
+            }
+
+            int dmg = LegalPreviewHelper.PreviewDamage(
+                BuildStateFromSnapshot(snapshot),
+                snapshot.SelectedUnitIdForPreview.Value,
+                targetId.Value);
+            _damageNumberText.text = dmg >= 0 ? dmg.ToString() : "?";
+            _damageNumberText.transform.localPosition = GridToLocal(cursor.X, cursor.Y, _damageY, _currentWidth, _currentHeight);
+            _damageLabelGo.SetActive(true);
+        }
+
+        // 从 BoardSnapshot 反推一个 BattleState 用于伤害预览。
+        // 仅在 Damage 数字场景下调用；非持久状态、不进入 Hash。
+        private static Core.Model.BattleState BuildStateFromSnapshot(in BoardSnapshot s)
+        {
+            var board = new Core.Model.BoardState(s.Width, s.Height, EmptyTileMap(s));
+            var state = new Core.Model.BattleState(0, Core.Model.Owner.Player, board, null);
+            foreach (var u in s.Units)
+            {
+                state.AddUnit(new Core.Model.UnitState(u.UnitId, u.Pos, u.Hp, u.Hp, u.Phase, u.Owner));
+            }
+            return state;
+        }
+
+        private static System.Collections.Generic.IDictionary<Core.Model.GridPos, Core.Model.TileState> EmptyTileMap(in BoardSnapshot s)
+        {
+            var d = new Dictionary<Core.Model.GridPos, Core.Model.TileState>(s.Width * s.Height);
+            for (int y = 0; y < s.Height; y++)
+                for (int x = 0; x < s.Width; x++)
+                    d[new Core.Model.GridPos(x, y)] = Core.Model.TileState.Normal;
+            return d;
         }
 
         // ============== Helpers ==============
