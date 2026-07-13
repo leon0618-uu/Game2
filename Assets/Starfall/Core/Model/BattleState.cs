@@ -16,6 +16,14 @@ namespace Starfall.Core.Model
         private readonly List<UnitState> _units;
         public IReadOnlyList<UnitState> Units => _units;
 
+        private readonly List<Starfall.Core.Status.StatusInstance> _statuses;
+        public IReadOnlyList<Starfall.Core.Status.StatusInstance> Statuses => _statuses;
+
+        /// <summary>
+        /// 下一个 StatusInstance 的 ID（确定性递增，用于 Replay 重放）。
+        /// </summary>
+        public int NextStatusInstanceId { get; set; }
+
         public BattleState(int turnNumber, Owner activePlayer, BoardState board, IEnumerable<UnitState> units)
         {
             if (turnNumber < 0)
@@ -24,12 +32,33 @@ namespace Starfall.Core.Model
             ActivePlayer = activePlayer;
             Board = board ?? throw new ArgumentNullException(nameof(board));
             _units = new List<UnitState>(units ?? Array.Empty<UnitState>());
+            _statuses = new List<Starfall.Core.Status.StatusInstance>();
+            NextStatusInstanceId = 0;
         }
 
         public void AddUnit(UnitState u)
         {
             if (u == null) throw new ArgumentNullException(nameof(u));
             _units.Add(u);
+        }
+
+        public void AddStatus(Starfall.Core.Status.StatusInstance s)
+        {
+            if (s == null) throw new ArgumentNullException(nameof(s));
+            _statuses.Add(s);
+        }
+
+        public bool RemoveStatus(int instanceId)
+        {
+            for (int i = 0; i < _statuses.Count; i++)
+            {
+                if (_statuses[i].InstanceId == instanceId)
+                {
+                    _statuses.RemoveAt(i);
+                    return true;
+                }
+            }
+            return false;
         }
 
         /// <summary>
@@ -66,8 +95,15 @@ namespace Starfall.Core.Model
                     h = MixByte(h, (byte)kv.Value);
                 }
 
-                // 7. statuses: 本任务暂未实现，预留空位（byte count=0）
-                h = MixByte(h, 0);
+                // 7. statuses: 按 (Kind, RemainingTurns, InstanceId) 升序（ADR-0001 §Decision 4）
+                h = MixByte(h, (byte)_statuses.Count);
+                var sortedStatuses = _statuses.OrderBy(s => s, Starfall.Core.Status.StatusInstanceComparer.Instance);
+                foreach (var s in sortedStatuses)
+                {
+                    h = MixByte(h, (byte)s.Kind);
+                    h = MixInt32(h, s.RemainingTurns);
+                    h = MixInt32(h, s.InstanceId);
+                }
 
                 // 8. pendingDecrees: 本任务暂未实现，预留空位（byte count=0）
                 h = MixByte(h, 0);

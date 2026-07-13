@@ -7,6 +7,10 @@ namespace Starfall.Core.Command
         None = 0,
         UnitMoved = 1,
         TurnEnded = 2,
+        StatusApplied = 3,
+        StatusRemoved = 4,
+        UnitDamaged = 5,
+        UnitPhaseInverted = 6,
     }
 
     /// <summary>

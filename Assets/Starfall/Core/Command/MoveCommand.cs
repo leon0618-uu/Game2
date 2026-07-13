@@ -32,6 +32,11 @@ namespace Starfall.Core.Command
             var unit = FindUnit(state, UnitId);
             if (unit == null) return false;
             if (unit.Pos != From) return false;
+            // Root 状态禁止移动
+            foreach (var s in state.Statuses)
+            {
+                if (s.SourceUnitId == UnitId && s.Kind == Starfall.Core.Status.StatusKind.Root) return false;
+            }
             // 目标格必须可站
             if (state.Board.Tiles.TryGetValue(To, out var tile) && tile == TileState.Blocked) return false;
             return true;
