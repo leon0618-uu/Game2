@@ -74,19 +74,19 @@ namespace Starfall.Tests.EditMode
         }
 
         [Test]
-        public void Reachable_Deterministic_NeighborOrder_DownLeftRightUp()
+        public void Reachable_Deterministic_NeighborOrder_NorthEastSouthWest()
         {
-            // AGENTS.md §11：邻居顺序 = 下、左、右、上
+            // AGENTS.md §11：邻居顺序 = North → East → South → West（上、右、下、左）
             // 4 步到 (2,2) 之后没有阻塞时，结果应包含全部 16 邻居（半径 1..4 = 不同距离）
-            // 关键：result 内部应按 (Y, X) 升序，且必须包含至少一个 Down/Left/Right/Up 各方向的格
+            // 关键：result 内部应按 (Y, X) 升序，且必须包含至少一个 North/East/South/West 各方向的格
             var board = MakeBoard(8, 8);
             var r = LegalPreviewHelper.Reachable(board, new GridPos(4, 4), new List<GridPos>(), 4);
             // 半径 4 内、不含自身 = 4+8+12+16-1 = 39
             // 简单测：必须包含 4 个直接邻居
-            Assert.IsTrue(r.Contains(new GridPos(4, 5))); // 下
-            Assert.IsTrue(r.Contains(new GridPos(3, 4))); // 左
-            Assert.IsTrue(r.Contains(new GridPos(5, 4))); // 右
-            Assert.IsTrue(r.Contains(new GridPos(4, 3))); // 上
+            Assert.IsTrue(r.Contains(new GridPos(4, 3))); // North (上)
+            Assert.IsTrue(r.Contains(new GridPos(5, 4))); // East  (右)
+            Assert.IsTrue(r.Contains(new GridPos(4, 5))); // South (下)
+            Assert.IsTrue(r.Contains(new GridPos(3, 4))); // West  (左)
             // 顺序：检查 result 自身是 (Y, X) 升序
             for (int i = 1; i < r.Count; i++)
             {
@@ -409,27 +409,26 @@ namespace Starfall.Tests.EditMode
             Assert.AreEqual(7, snap.Units[0].Hp);
         }
 
-        // ===== 9. AGENTS.md §11 确定性：BFS 邻居顺序 = 下、左、右、上 =====
+        // ===== 9. AGENTS.md §11 确定性：BFS 邻居顺序 = North → East → South → West =====
 
         [Test]
-        public void Reachable_NeighborOrder_DownLeftRightUp_FirstStep()
+        public void Reachable_NeighborOrder_NorthEastSouthWest_ResultSortedByYX()
         {
+            // LegalPreviewHelper.Reachable 最终会对 result 按 (Y, X) 升序排序，
+            // 因此 result 中 4 邻居的顺序 = (Y,X) 排序顺序，与 BFS 遍历顺序无关。
             // 起点 (X=2,Y=2)，半径 1：4 个邻居：
-            //   下：(X=2,Y=3)
-            //   左：(X=1,Y=2)
-            //   右：(X=3,Y=2)
-            //   上：(X=2,Y=1)
-            // (Y,X) 升序：(X=2,Y=1) Y=1 → 第一
-            //             (X=1,Y=2) Y=2,X=1 → 第二
-            //             (X=3,Y=2) Y=2,X=3 → 第三
-            //             (X=2,Y=3) Y=3 → 第四
+            //   North：(X=2,Y=1)  → Y=1 → 排第一
+            //   West ：(X=1,Y=2)  → Y=2, X=1 → 第二
+            //   East ：(X=3,Y=2)  → Y=2, X=3 → 第三
+            //   South：(X=2,Y=3)  → Y=3 → 第四
+            // 这条 assert 保护的是"结果升序"契约，BFS 邻居顺序由 BFSPathfinder 单独测试。
             var board = MakeBoard(5, 5);
             var r = LegalPreviewHelper.Reachable(board, new GridPos(2, 2), new List<GridPos>(), 1);
             Assert.AreEqual(4, r.Count);
-            Assert.AreEqual(new GridPos(2, 1), r[0]); // Y=1 (上)
-            Assert.AreEqual(new GridPos(1, 2), r[1]); // Y=2, X=1 (左)
-            Assert.AreEqual(new GridPos(3, 2), r[2]); // Y=2, X=3 (右)
-            Assert.AreEqual(new GridPos(2, 3), r[3]); // Y=3 (下)
+            Assert.AreEqual(new GridPos(2, 1), r[0]); // Y=1 (North/上)
+            Assert.AreEqual(new GridPos(1, 2), r[1]); // Y=2, X=1 (West/左)
+            Assert.AreEqual(new GridPos(3, 2), r[2]); // Y=2, X=3 (East/右)
+            Assert.AreEqual(new GridPos(2, 3), r[3]); // Y=3 (South/下)
         }
 
         [Test]

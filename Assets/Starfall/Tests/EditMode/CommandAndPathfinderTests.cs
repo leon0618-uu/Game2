@@ -74,6 +74,23 @@ namespace Starfall.Tests.EditMode
         }
 
         [Test]
+        public void BFSPathfinder_NeighborOrder_NorthEastSouthWest()
+        {
+            // AGENTS.md §11：邻居顺序 = North → East → South → West
+            // 从 (0,0) 到 (1,1) 存在两条同长路径：(0,0)→(0,1)→(1,1) 与 (0,0)→(1,0)→(1,1)。
+            // BFS 邻居遍历顺序决定哪条同距离的中间点被首次记录到 cameFrom。
+            // 顺序 = (0,-1)/(1,0)/(0,1)/(-1,0) → 先访问 (1,0) → 回溯路径 = (0,0)→(1,0)→(1,1)。
+            var board = MakeBoard();
+            var pf = new BFSPathfinder();
+            var path = pf.FindPath(board, new GridPos(0, 0), new GridPos(1, 1));
+            Assert.IsNotNull(path);
+            Assert.AreEqual(3, path.Count);
+            Assert.AreEqual(new GridPos(0, 0), path[0]);
+            Assert.AreEqual(new GridPos(1, 0), path[1], "North→East→South→West 顺序下，应先访问 East(1,0)");
+            Assert.AreEqual(new GridPos(1, 1), path[2]);
+        }
+
+        [Test]
         public void MoveCommand_AppliesSuccessfully()
         {
             var s = MakeStateWithUnit(new GridPos(0, 0));
