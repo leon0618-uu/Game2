@@ -1,0 +1,31 @@
+{
+  "TurnNumber": 0,
+  "ActivePlayer": "Player",
+  "Board": {
+    "Width": 8,
+    "Height": 10,
+    "Tiles": [
+      { "X": 0, "Y": 0, "State": "Blocked" },
+      { "X": 3, "Y": 0, "State": "Blocked" },
+      { "X": 5, "Y": 0, "State": "Blocked" },
+      { "X": 7, "Y": 0, "State": "Blocked" },
+      { "X": 0, "Y": 9, "State": "Blocked" },
+      { "X": 7, "Y": 9, "State": "Blocked" },
+      { "X": 3, "Y": 4, "State": "Objective" },
+      { "X": 4, "Y": 5, "State": "Hazard" },
+      { "X": 2, "Y": 5, "State": "Hazard" }
+    ]
+  },
+  "Units": [
+    { "UnitId": 1, "X": 1, "Y": 1, "Hp": 15, "Phase": "Light", "Owner": "Player" },
+    { "UnitId": 2, "X": 2, "Y": 1, "Hp": 12, "Phase": "Light", "Owner": "Player" },
+    { "UnitId": 3, "X": 1, "Y": 2, "Hp": 18, "Phase": "Light", "Owner": "Player" },
+    { "UnitId": 4, "X": 2, "Y": 2, "Hp": 10, "Phase": "Dark",  "Owner": "Player" },
+    { "UnitId": 5, "X": 6, "Y": 7, "Hp": 10, "Phase": "Dark",  "Owner": "Enemy" },
+    { "UnitId": 6, "X": 6, "Y": 8, "Hp": 8,  "Phase": "Dark",  "Owner": "Enemy" },
+    { "UnitId": 7, "X": 5, "Y": 8, "Hp": 12, "Phase": "Dark",  "Owner": "Enemy" },
+    { "UnitId": 8, "X": 5, "Y": 7, "Hp": 10, "Phase": "Light","Owner": "Enemy" },
+    { "UnitId": 9, "X": 4, "Y": 7, "Hp": 15, "Phase": "Dark", "Owner": "Enemy" },
+    { "UnitId": 10, "X": 4, "Y": 8, "Hp": 10, "Phase": "Dark","Owner": "Enemy" }
+  ]
+}
