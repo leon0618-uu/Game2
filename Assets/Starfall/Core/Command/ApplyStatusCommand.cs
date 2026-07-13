@@ -36,6 +36,10 @@ namespace Starfall.Core.Command
             events = System.Array.Empty<BattleEvent>();
             if (!CanExecute(state)) return CommandResult.Illegal;
 
+            // PhaseInvert 防双跳：已有同源 PhaseInvert 状态且 RemainingTurns > 0 则拒绝
+            if (Kind == StatusKind.PhaseInvert && !Starfall.Core.Rules.PhaseFlipValidator.CanFlipPhase(state, TargetUnitId))
+                return CommandResult.Illegal;
+
             var inst = new StatusInstance(state.NextStatusInstanceId, Kind, RemainingTurns, SourceUnitId);
             state.NextStatusInstanceId++;
             state.AddStatus(inst);
