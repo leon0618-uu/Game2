@@ -1,0 +1,14 @@
+{
+    "name": "Starfall.Tests.PlayMode",
+    "rootNamespace": "Starfall.Tests.PlayMode",
+    "references": ["Starfall.Core", "UnityEngine.TestRunner"],
+    "includePlatforms": [],
+    "excludePlatforms": ["Editor"],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": ["nunit.framework.dll"],
+    "autoReferenced": false,
+    "defineConstraints": ["UNITY_INCLUDE_TESTS"],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
