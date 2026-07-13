@@ -1,7 +1,11 @@
 {
     "name": "Starfall.Unity",
     "rootNamespace": "Starfall.Unity",
-    "references": ["Starfall.Core", "Starfall.Data"],
+    "references": [
+        "Starfall.Core",
+        "Starfall.Data",
+        "UnityEngine.UI"
+    ],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
