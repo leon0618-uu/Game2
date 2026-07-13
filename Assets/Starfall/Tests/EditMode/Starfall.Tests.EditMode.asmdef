@@ -1,7 +1,7 @@
 {
     "name": "Starfall.Tests.EditMode",
     "rootNamespace": "Starfall.Tests.EditMode",
-    "references": ["Starfall.Core", "Starfall.Data", "UnityEngine.TestRunner", "UnityEditor.TestRunner"],
+    "references": ["Starfall.Core", "Starfall.Data", "Starfall.Unity", "UnityEngine.TestRunner", "UnityEditor.TestRunner"],
     "includePlatforms": ["Editor"],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
