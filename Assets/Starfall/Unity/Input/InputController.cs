@@ -27,10 +27,57 @@ namespace Starfall.Unity.Input
     /// - 不直接改 BattleState 任何字段（AGENTS.md §10.3 / §13）；
     /// - 不复制玩法规则（移动 / 攻击 / 邻接判定委托给 InputStateMachine + Core Command）；
     /// - 不新增 Unity Package（用 UnityEngine.InputSystem 1.19.0 已装）。
+    ///
+    /// M-35 input-bug-fix（M-35 视觉验收）:见类内 <see cref="ConfigureInputSystemForMvp"/>。
+    /// 背景：InputSystem 1.19 在 Editor Play 模式下的默认 editorInputBehaviorInPlayMode
+    /// 是 <c>PointersAndKeyboardsRespectGameViewFocus</c>——当 Game view 失焦时，键盘事件
+    /// 会被路由到当前拥有焦点的 EditorWindow（Hierarchy / Inspector / Project / Console），
+    /// 而不是游戏本身。这导致玩家点开 Project 看 JSON 后，按 M/F/A/D/方向键都无响应，
+    /// HUD 一直停在 SelectUnit。修复：把行为切到 <c>AllDeviceInputAlwaysGoesToGameView</c>，
+    /// 让 Editor Play 模式下的输入路由与 Player 构建保持一致。
     /// </summary>
     [DefaultExecutionOrder(100)]  // 在 BattleBootstrap 之后
     public class InputController : MonoBehaviour
     {
+        // ============================================================
+        // M-35 fix：启动时把 InputSystem 的 Editor 输入路由切到「游戏优先」
+        // ============================================================
+        // 必须在第一个场景加载前完成（RuntimeInitializeLoadType.BeforeSceneLoad），
+        // 否则 InputController.Awake / Update 的 Keyboard.current 调用就拿不到键位。
+        // 用 [RuntimeInitializeOnLoadMethod] 而非 BattleBootstrap.Awake 的原因：
+        // 1. 不需要等场景里有 InputController / BattleBootstrap 实例；
+        // 2. Editor 下无需 Play 也能在 EditMode→PlayMode 转换时立即生效；
+        // 3. Player 构建中也会执行，无需在 Bootstrap 加 if (Application.isEditor) 分支。
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+        private static void ConfigureInputSystemForMvp()
+        {
+            try
+            {
+                var s = UnityEngine.InputSystem.InputSystem.settings;
+                if (s == null) return;  // 极端情况：InputSystem 未初始化（不应该发生）
+                var target = InputSettings.EditorInputBehaviorInPlayMode.AllDeviceInputAlwaysGoesToGameView;
+                if (s.editorInputBehaviorInPlayMode != target)
+                {
+                    Debug.Log($"[InputController/M-35] editorInputBehaviorInPlayMode: " +
+                              $"{s.editorInputBehaviorInPlayMode} → {target} (keyboards now always reach Game view).");
+                    s.editorInputBehaviorInPlayMode = target;
+                }
+            }
+            catch (System.Exception ex)
+            {
+                // 修复失败不能让游戏起不来；记 log 即可
+                Debug.LogWarning($"[InputController/M-35] Failed to configure InputSystem settings: {ex.Message}");
+            }
+
+            // 安全网：构建中失焦（alt-tab）时游戏继续跑，避免 InputSystem 切到 background 行为。
+            if (!Application.runInBackground)
+            {
+                Application.runInBackground = true;
+            }
+        }
+#endif
+
         [Header("Bindings")]
         [Tooltip("BattleBootstrap 同对象或场景内 BattleBootstrap 引用；为空则在 Awake 寻找。")]
         [SerializeField] private BattleBootstrap _bootstrap;
