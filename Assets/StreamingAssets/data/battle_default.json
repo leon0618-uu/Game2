@@ -27,5 +27,8 @@
     { "UnitId": 8, "X": 5, "Y": 7, "Hp": 10, "Phase": "Light","Owner": "Enemy" },
     { "UnitId": 9, "X": 4, "Y": 7, "Hp": 15, "Phase": "Dark", "Owner": "Enemy" },
     { "UnitId": 10, "X": 4, "Y": 8, "Hp": 10, "Phase": "Dark","Owner": "Enemy" }
-  ]
+  ],
+  "GuardsRequired": 3,
+  "ExitTileX": 0,
+  "ExitTileY": 9
 }

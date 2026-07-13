@@ -31,6 +31,13 @@ namespace Starfall.Data.Loading
                 var owner = System.Enum.Parse<Owner>(u.Owner, true);
                 state.AddUnit(new UnitState(u.UnitId, new GridPos(u.X, u.Y), u.Hp, u.Hp, phase, owner));
             }
+
+            // Task 19 关卡闭环字段应用（向后兼容：null = 用 BattleState 默认值）
+            if (def.GuardsRequired.HasValue)
+                state.GuardsRequired = def.GuardsRequired.Value;
+            if (def.ExitTileX.HasValue && def.ExitTileY.HasValue)
+                state.ExitTile = new GridPos(def.ExitTileX.Value, def.ExitTileY.Value);
+
             return state;
         }
     }
