@@ -3634,3 +3634,105 @@ agent/13-rules-falling-crush-phase → main 合并策略：   候用户裁决
 | M-28 | agent/13-rules-falling-crush-phase 合并到 main？ | B（与 Task 14+ 一起合） |
 | M-29 | 启动 Task 14（攻击 Command + 真实敌 AI）？ | A（自动） |
 | M-30 | Task 14 范围？ | A 最小（AttackCommand + 伤害公式 + ImprovedEnemyAI） |
+
+---
+
+## Task 14 Final Gate — Lead Phase E 整合（2026-07-13 02:10 GMT+8）
+> **作者**：xingyuan-lead
+> **上下文**：Task 14 Phase A 由 gameplay 子会话完成（runtime 自动委派，3 commits on gent/14-attack-and-ai）。Lead 修复 1 处 AI bug：ImprovedEnemyAI.MovesWhenNotAdjacent 时构造 MoveCommand 违反 path[last]==to 约束。Phase E 由 Lead 亲测编译 + EditMode 全部 PASS。
+
+### Task 14 Phase A — 实施落地证据
+
+#### A.1 — Combat/Command 新增（3 文件 / 153 行）
+- Assets/Starfall/Core/Combat/DamageFormula.cs（43 行，Compute + ComputeWithStatuses）
+- Assets/Starfall/Core/Command/AttackCommand.cs（49 行，Chebyshev ≤ 1 adjacency + DamageFormula 调用 + UnitDamaged 事件）
+- Assets/Starfall/Core/Combat/ImprovedEnemyAI.cs（61 行，选最近 Player → Attack if adjacent / Else Move 1 step / EndTurn）
+
+#### A.2 — 测试集（1 文件 / 105 行 / 8 [Test]）
+- Assets/Starfall/Tests/EditMode/AttackAndAITests.cs
+
+### Lead 修复
+
+#### Fix — ImprovedEnemyAI MoveCommand 路径构造错误
+- **现象**：93/94 PASS，ImprovedEnemyAI_MovesWhenNotAdjacent 失败
+- **根因**：AI 用完整 BFS 路径（(5,5)→...→(0,0)）但 	o=nextPos=path[1]，违反 MoveCommand ctor 约束 path[last] == to → 抛 ArgumentException
+- **修复**：commit c696289 改用 2 点路径 [from, to] 单步移动
+- **commit SHA**：c696289
+
+### Task 14 Phase B — 真实编译 + EditMode 测试（Lead 亲测）
+
+#### B.1 — 编译基线
+- 退出码：**0**
+- 日志路径：D:\AI-Worktrees\Xingyuan\gameplay\Logs\task14-compile.log — **1,969,793 bytes**
+- 总耗时：约 **3 分钟**
+- error CS 次数：**0**
+- warning CS 次数：**2**（沿用 ReplayException 类型）
+- DLL：
+  - Starfall.Core.dll：**44,032 bytes**（vs Task 13 的 38,912；DamageFormula/AttackCommand/ImprovedEnemyAI 增量）
+  - Starfall.Data.dll：13,824 bytes（无变化）
+  - Starfall.Unity.dll：10,752 bytes（无变化）
+  - Starfall.Tests.EditMode.dll：**38,912 bytes**（vs Task 13 的 35,328；AttackAndAITests 增量）
+
+#### B.2 — EditMode 测试运行（94 项 / 94 PASS）
+- 退出码：**0**
+- testResults.xml：D:\AI-Worktrees\Xingyuan\gameplay\Logs\task14-rerun.xml
+- 总耗时：约 **2 分钟**
+- **test-run 元素属性**：
+  - 	otal=94 passed=94 failed=0 skipped=0 result="Passed"
+
+#### B.3 — 8 个 Attack+AI 测试详细结果
+
+| # | 测试名 | 结果 |
+|---|---|---|
+| 1 | DamageFormula_SamePhase_1x | ✅ Passed |
+| 2 | DamageFormula_DifferentPhase_1_5x | ✅ Passed |
+| 3 | DamageFormula_BurnAttacker_Plus1 | ✅ Passed |
+| 4 | AttackCommand_AppliesDamage | ✅ Passed |
+| 5 | AttackCommand_IllegalIfNotAdjacent | ✅ Passed |
+| 6 | ImprovedEnemyAI_AttacksAdjacent | ✅ Passed |
+| 7 | ImprovedEnemyAI_MovesWhenNotAdjacent | ✅ Passed（Lead fix） |
+| 8 | ImprovedEnemyAI_EndsWithEndTurn | ✅ Passed |
+
+其他 86 测试全部 PASS（4 CoreGuard + 12 Foundation + 9 Command-Pathfinder + 10 Status + 7 Data + 9 Combat + 8 Anchor+Decree + 6 Presentation + 8 Replay+Undo + 6 ReplayCodec + 7 Rules + 4 Combat-orig + 4 其他）
+
+### Task 14 Gate 判定：✅ **PASS**
+
+| Gate 项 | 期望 | 实测 | 状态 |
+|---|---|---|---|
+| 编译 run-and-pass | exit 0 / 0 error | exit 0 / 0 error / 2 warning | ✅ |
+| Starfall.Core.dll 含 Attack+AI | > 38912 | 44,032 bytes | ✅ |
+| Attack+AI 8/8 | 8 passed | 8 passed | ✅ |
+| 累计 94/94 | 86 + 8 = 94 | 94 passed | ✅ |
+| 模板/Packages 未改 | 不动 | 仅 Assets/Starfall/Core/{Combat,Command} + Tests | ✅ |
+
+### Task 14 Final Commit Chain on gent/14-attack-and-ai（基于 agent/13-rules-falling-crush-phase@27246bd）
+`
+c696289  02:08  fix(ai): ImprovedEnemyAI builds 2-point step path to satisfy MoveCommand path[last]==to contract
+b49eaf7  01:28  test(combat): add AttackAndAITests with 8 [Test] (formula/attack/AI)
+e1ced65  01:28  feat(combat+command): add AttackCommand (Chebyshev ≤ 1 adjacency) + ImprovedEnemyAI
+dc43a79  01:28  feat(combat): add DamageFormula (phase modifier 1.5x + Burn +1)
+`
+
+4 commits ahead of Task 13
+
+### Task 14 READINESS 状态最终
+`
+Task 14 Gate:                 PASS（5/5 验证项 + 94/94 测试）
+Task 15 READINESS:            READY（场景 / 关卡（SampleScene + 8x10 地图 + UI 启动）可启动）
+agent/14-attack-and-ai → main 合并策略：   候用户裁决
+`
+
+### 累计 Starfall.* 资产
+- Core: 42 .cs（39 Task 03-12 + 3 Task 13/14 增量）
+- Data: 8 .cs
+- Unity: 8 .cs
+- Tests: 12 文件 / 94 [Test]
+- **合计**：58 个业务 .cs + 12 测试集
+
+### 下一轮建议（候用户裁决）
+
+| ID | 决策 | Lead 建议 |
+|---|---|---|
+| M-31 | agent/14-attack-and-ai 合并到 main？ | B（与 Task 15 一起合） |
+| M-32 | 启动 Task 15（场景 + 8×10 棋盘 + UI 启动）？ | A（自动） |
+| M-33 | Task 15 范围？ | A 最小（SampleScene + BattleBootstrap 挂载 + 8x10 战斗 JSON） |
