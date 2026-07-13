@@ -4,16 +4,18 @@ using Starfall.Core.Model;
 namespace Starfall.Core.Pathfinding
 {
     /// <summary>
-    /// BFS 4 邻居寻路（AGENTS.md §11 确定性：下、左、右、上）。
+    /// BFS 4 邻居寻路（AGENTS.md §11 确定性：North → East → South → West）。
     /// 距离相等时按 (Y, X) 升序 tie-break（GridPosComparer）。
     /// 阻塞格：TileState.Blocked 或越界。
+    /// 坐标系：X 向右为正（East），Y 向下为正（South）。
     /// </summary>
     public sealed class BFSPathfinder : IPathfinder
     {
-        // 邻居顺序固定：下 (0,1)、左 (-1,0)、右 (1,0)、上 (0,-1)
+        // 邻居顺序固定：North (0,-1) → East (1,0) → South (0,1) → West (-1,0)
+        // 与 doc2 §4.5 / MAP-05 §9.4 平局规则一致；AGENTS.md §11 已同步。
         private static readonly (int dx, int dy)[] Neighbors = new (int, int)[]
         {
-            (0, 1), (-1, 0), (1, 0), (0, -1)
+            (0, -1), (1, 0), (0, 1), (-1, 0)
         };
 
         public IReadOnlyList<GridPos> FindPath(BoardState board, GridPos from, GridPos to)
