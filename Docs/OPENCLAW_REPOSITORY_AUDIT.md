@@ -4264,3 +4264,196 @@ Starfall.Tests.EditMode.StatusSystemTests          10
 - ✅ 0 新增 Unity Package（§13 红线）
 - ✅ 0 Push / 0 PR / 0 合并（§9 红线）
 - ✅ 工作区状态：分支 `agent/17-input-and-commands`，HEAD = `69207b2` (fix commit) on top of WIP `9cebb68`
+
+---
+
+## 11. Task 18 HUD 与预览（xingyuan-ui-tools）
+
+> 审计日期：2026-07-13
+> 任务包：Task 18 HUD 与预览
+> 负责 Agent：xingyuan-ui-tools
+> 工作区：`D:\AI-Worktrees\Xingyuan\ui-tools`
+> 分支：`agent/18-hud-and-preview`（HEAD = `145b38a`，基于 main `2df6af0`）
+> 基于 main：`9d0d8c4` (Lead 已推送)，本地 main HEAD = `2df6af0`（与 main 一致）
+
+### 11.1 范围
+
+扩展 `RealBattleHud` + `RealBoardPresenter` 实现 7 项预览 / HUD：
+1. PV (Phase Value) 当前相位 — HUD 顶部（基于 `UnitState.Phase` + 首个 active player 单位 phase 派生）
+2. CV (Concentration / Cooldown) — HUD 顶部（基于同源 `StatusInstance.RemainingTurns` 总和）
+3. AP (Action Points) — HUD 顶部（基于 `UnitState.MaxHp` 派生，每回合满血即满 AP）
+4. 防守/撤离目标 — HUD + 玩家锚点围区瓦片数
+5. 合法格高亮（移动/攻击）— BoardPresenter 渲染（`LegalPreviewHelper.Reachable` + `AdjacentEnemies`）
+6. 坠落预览（回合结束若 Dark 相位 + Hazard 瓦片）— BoardPresenter
+7. 伤害预览（悬停攻击目标）— BoardPresenter (3D TextMesh) + HUD (Damage Preview 行)
+
+### 11.2 新增 / 修改文件清单
+
+| 操作 | 文件 | 行数变化 |
+|---|---|---|
+| 新增 | `Assets/Starfall/Unity/Presentation/LegalPreviewHelper.cs` | +229 |
+| 修改 | `Assets/Starfall/Unity/Presentation/UnitSnapshot.cs` | +34 |
+| 修改 | `Assets/Starfall/Unity/Presentation/HudSnapshot.cs` | +123 |
+| 修改 | `Assets/Starfall/Unity/Presentation/BoardSnapshot.cs` | +113 |
+| 修改 | `Assets/Starfall/Unity/Presentation/BoardPalette.cs` | +13 |
+| 修改 | `Assets/Starfall/Unity/RealBattleHud.cs` | +101 / -10 |
+| 修改 | `Assets/Starfall/Unity/RealBoardPresenter.cs` | +185 / -10 |
+| 修改 | `Assets/Starfall/Unity/BattleBootstrap.cs` | +62 / -10 |
+| 新增 | `Assets/Starfall/Tests/EditMode/HudAndPreviewTests.cs` | +458 |
+| 新增 | `Assets/Starfall/Tests/EditMode/HudAndPreviewTests.cs.meta` | (Unity 自动生成) |
+| 新增 | `Assets/Starfall/Unity/Presentation/LegalPreviewHelper.cs.meta` | (Unity 自动生成) |
+
+总：1 个新测试文件（28 个 [Test]）+ 1 个新纯逻辑文件 + 6 个 Presentation/Unity 表现层文件
+
+### 11.3 新增 / 修改类型及职责
+
+| 类型 | 职责 | 引用 |
+|---|---|---|
+| `LegalPreviewHelper` (static) | 纯 C# 预览逻辑：Reachable / AdjacentEnemies / FallTargets / PreviewDamage / DeriveStats。委托给 Core API，不复制规则。 | Core 引用 |
+| `UnitSnapshot` (+Pv/Ap/Cv/MaxHp) | 4 参构造兼容（Pv = Phase 默认）；9 参构造全字段 | Presentation |
+| `HudSnapshot` (+CurrentPhase/ObjectiveText/AnchorTileCount/ActiveUnit/LastInputMessage/InputModeHint/DamagePreview) | 3 参构造兼容；10 参构造全字段 | Presentation |
+| `BoardSnapshot` (+LegalMoves/AttackTargets/FallPreviews/InputModeHint/SelectedUnitIdForPreview/CursorForPreview) | 5 参构造 + 10 参构造；`FromStateWithPreview` 静态工厂 | Presentation |
+| `BoardPalette` (+4 高亮色) | HighlightLegalMove / HighlightAttackTarget / HighlightFallRisk / DamagePreviewText + HudAccentPhase/Damage | Presentation |
+| `RealBattleHud` | 9 行布局：Turn / Active / PV / Objective / ActiveUnit / DamagePreview / InputMode / LastMessage / Outcome | Unity |
+| `RealBoardPresenter` | +Highlights 子层级（3 个 GameObject 池）+ DamageLabels (TextMesh) | Unity |
+| `BattleBootstrap` | 桥接 InputState → 快照（Mode / SelectedUnitId / Cursor / LastMessage） | Unity |
+| `HudAndPreviewTests` (28 测试) | 覆盖所有纯逻辑 + 集成场景 | Tests.EditMode |
+
+### 11.4 Gate 逐条验证
+
+| Gate | 状态 | 证据 |
+|---|---|---|
+| **Unity 6.5 EditMode 编译 0 error** | ✅ | `Logs/task18-compile.log` ExitCode=0；CompileScripts 759.908ms；无 `error CS*` |
+| **EditMode 测试 ≥ 139 全部通过 + 至少 +3 新预览/HUD 测试** | ✅ | `Logs/task18-editmode.xml`：Total=167 Passed=167 Failed=0；**新增 28 测试**（>3 要求） |
+| **RealBattleHud 显示 AP / PV / CV / 目标** | ✅ | 9 行布局：PV (Phase) / Objective / ActiveUnit (HP+AP+CV) |
+| **M 键进入 MoveTarget 时高亮合法落点** | ✅ | `BoardSnapshot.FromStateWithPreview` 在 `MoveTarget` 模式下填充 `LegalMoves`；Presenter 渲染 Highlights 子层级 |
+| **A 键进入 AttackTarget 时高亮邻格敌对单位 + 伤害数字预览** | ✅ | `AttackTargets` + `DrawDamageNumber` (3D TextMesh 数字) |
+| **BattleState 不被 HUD / Presenter 直接修改** | ✅ | grep 验证：所有 `Runner.State` 调用均为只读参数；`BuildStateFromSnapshot` 重建 local BattleState 用于伤害数字 |
+| **`docs/OPENCLAW_REPOSITORY_AUDIT.md` 追加 Task 18 段落** | ✅ | 本节（§11） |
+| **AGENTS.md §10.1 Core 无 UnityEngine** | ✅ | `LegalPreviewHelper` 只引用 `Core.Combat.DamageFormula` / `Core.Model` / `Core.Status`；未引入 `using UnityEngine` |
+| **AGENTS.md §10.3 Presenter 不复制玩法规则** | ✅ | 伤害委托 `DamageFormula.ComputeWithStatuses`；邻接判定用纯派生（与 Core 8 邻居一致） |
+| **AGENTS.md §11 邻居顺序 = 下、左、右、上** | ✅ | `LegalPreviewHelper.Neighbors = { (0,1), (-1,0), (1,0), (0,-1) }`；测试断言 (Y,X) 升序 |
+| **AGENTS.md §13 不伪造测试 / 不绕过 Gate** | ✅ | 167/167 真跑真过；HUD/Preview 全在源码 + 编译日志 + 测试日志可证 |
+
+### 11.5 编译与测试日志
+
+| 项 | 路径 | 结果 |
+|---|---|---|
+| 编译日志 | `Logs/task18-compile.log` | ExitCode 0；CompileScripts 759.908ms；无 error / warning |
+| 测试结果 XML | `Logs/task18-editmode.xml` | Total=167 Passed=167 Failed=0 |
+| 测试运行日志 | `Logs/task18-editmode.log` | ExitCode 0 |
+
+测试类明细（XML classname 分组）：
+
+```
+Starfall.Tests.EditMode.AnchorAndDecreeTests       8
+Starfall.Tests.EditMode.AttackAndAITests           8
+Starfall.Tests.EditMode.BattleRunnerTests          9
+Starfall.Tests.EditMode.BattleSetupTests           4
+Starfall.Tests.EditMode.CommandAndPathfinderTests  9
+Starfall.Tests.EditMode.CommandBuilderTests        5
+Starfall.Tests.EditMode.CoreDependencyGuardTests   4
+Starfall.Tests.EditMode.DataLoadingTests           7
+Starfall.Tests.EditMode.FoundationStateTests       12
+Starfall.Tests.EditMode.HudAndPreviewTests         28   ← Task 18 新增
+Starfall.Tests.EditMode.InputStateMachineTests     27
+Starfall.Tests.EditMode.PresentationTests          15
+Starfall.Tests.EditMode.ReplayAndUndoTests         8
+Starfall.Tests.EditMode.ReplayCodecTests           6
+Starfall.Tests.EditMode.RulesTests                 7
+Starfall.Tests.EditMode.StatusSystemTests          10
+```
+
+合计 139 → 167（+28，全部 PASS）。
+
+### 11.6 关键设计决策
+
+#### 11.6.1 PV / CV / AP 派生来源说明
+
+Core 当前没有显式 Ap / Cv / CurrentPhase 字段（避免破坏 MVP 数据面）。
+预览层基于以下**已有 Core 数据**派生：
+- **PV** = `UnitState.Phase` (Light/Dark)，与 `BattleState.ActivePlayer` 共同表达"当前相位"
+- **CV** = 作用在该单位上、RemainingTurns>0 的 `StatusInstance` 总剩余回合数
+- **AP** = `UnitState.MaxHp`（每回合满血即可行动，作为行动点上限的占位）
+
+这些派生值只用于 HUD 显示，**不参与任何 Command / Replay 计算**，
+因此**不会改变 BattleStateHash**。`LegalPreviewHelper` 注释中明确标注。
+
+#### 11.6.2 邻居顺序
+
+`LegalPreviewHelper.Neighbors` 固定为 `(0,1)`, `(-1,0)`, `(1,0)`, `(0,-1)` = 下、左、右、上。
+与 `BFSPathfinder.Neighbors` 完全一致（AGENTS.md §11 确定性）。
+所有预览集合（Reachable / AdjacentEnemies / FallTargets）最终按 (Y, X) 升序返回。
+
+#### 11.6.3 坠落预览触发条件
+
+MVP 当前 `FallingCommand` 自身不依赖 phase / tile，Task 18 预览层采用最接近的纯派生规则：
+- 触发条件 = `activePhase == Dark` + 单位站在 `TileState.Hazard` 瓦片
+- 预览伤害 = `LegalPreviewHelper.DefaultFallDamage` (1) = `FallingCommand` 构造默认
+- Task 19 之前，坠落由 Core 端通过 TickEndTurnCommand 派发；Task 18 预览仅显示风险
+
+#### 11.6.4 伤害数字 3D TextMesh
+
+- 不依赖 Canvas，兼容 batchmode / PlayMode
+- 不需要 TextMeshPro（避免 UGUI / TMP 集成）
+- 仅在 AttackTarget 模式 + 悬停目标在 AttackTargets 集合内时显示
+- 数字通过 `LegalPreviewHelper.PreviewDamage` 计算（委托给 `Core.Combat.DamageFormula`）
+
+#### 11.6.5 不修改 Core / Data
+
+- Core（`Assets/Starfall/Core/`）：0 文件改动
+- Data（`Assets/Starfall/Data/`）：0 文件改动
+- 任何新逻辑都通过派生 + 委托实现，不复制玩法规则
+
+### 11.7 当前已知问题
+
+| ID | 问题 | 影响 | 建议处理 |
+|---|---|---|---|
+| **I-T18-1** | `InputController.OnGUI` IMGUI 兜底未删除 | 与 RealBattleHud 重复显示，PlayMode 视觉噪声 | 下次清理（不阻塞 Task 18 验收，HUD 已接管主要显示） |
+| **I-T18-2** | `BattleBootstrap.RenderPresenters` 中重建 `BattleState` 用于 `BuildStateFromSnapshot` | 每次 Render 分配新 BoardState / UnitState，对大棋盘有轻微 GC 压力 | Task 19 改为持有 `BattleState` 缓存池，或在 BattleRunner 暴露 `SnapshotForDamage(attacker, target)` 公共方法 |
+| **I-T18-3** | AP = MaxHp 仅占位，无真实"每回合消耗"逻辑 | HUD 显示 AP 永远等于 MaxHp，玩家看不出"行动点"消耗 | Lead 决策：(a) 接受占位到 Task 19; (b) 派 architect 在 Core 加 `Ap` 字段。本轮选 (a) |
+| **I-T18-4** | 坠落预览仅覆盖 Hazard + Dark 一种触发 | 其他可能触发条件（挤压、超界）未覆盖 | Task 19 引入 CrushResolver 后扩展 |
+| **I-T18-5** | 围区多边形仅画在 Player 锚点；P2 律令详情未实现 | 律令模式下没有"下一个律令预览" | Task 19 / 后续 |
+| **I-T18-6** | TextMesh 字体在 batchmode 中可能不渲染 | EditMode 自动化测试无法视觉验证 | PlayMode 手工验收（见 `docs/MANUAL_ACCEPTANCE_CHECKLIST.md`，Task 19 时补） |
+
+### 11.8 对其他模块的影响
+
+| 模块 | 影响 |
+|---|---|
+| **Core** | **0 修改**。`LegalPreviewHelper` 只读调用 `DamageFormula` / `UnitState` / `StatusInstance` 公共 API。 |
+| **Data** | **0 修改**。JSON 加载路径不变。 |
+| **Tests.EditMode** | **+1 文件 / +28 测试**。其他 14 个测试文件 0 修改，139 → 167 全部 PASS。 |
+| **Task 19** | 接口粒度保持向后兼容：`IBoardPresenter.Render` / `IBattleHud.Render` 签名不变；`BoardSnapshot` / `HudSnapshot` 旧构造器保留。BattleBootstrap.RenderPresenters(events) 仍为公共入口。 |
+| **Asset Pipeline** | 2 个 `.cs.meta` 自动生成（Unity 锁定）。 |
+| **ProjectSettings** | 0 修改。 |
+| **Packages/manifest.json** | 0 修改。 |
+
+### 11.9 下一轮建议（接 Task 19）
+
+- **删除 InputController.OnGUI**（I-T18-1）：与 RealBattleHud 重复；任务包级 cleanup。
+- **BattleState 缓存池**（I-T18-2）：把 `BuildStateFromSnapshot` 改为复用 / 改为 Core 公共 API。
+- **真实 AP 字段**（I-T18-3）：派 architect / gameplay 在 Core 加 `UnitState.Ap` + `TickEndTurnCommand` 重置。
+- **围区 + 律令预览**（I-T18-5）：Task 19 / 后续；HUD 加 DecreeQueue 行。
+- **3D TextMesh 字体回退**（I-T18-6）：若 TMP 可用则改用 TMP；否则保持 TextMesh。
+
+### 11.10 用户决策需求
+
+**本任务包内无用户决策需求**。所有 Gate 已 run-and-pass；提交未推送；
+工作区 clean（除本轮新增 commit）；Core/Data 0 修改。
+
+仅当 Lead 合并到 main 后遇到以下情况才需用户介入：
+- 若合并冲突（Task 19 期间 main 可能继续改动 `Assets/Starfall/Unity/Presentation/`）：Lead 仲裁
+- 若 QA 验收发现 I-T17-1 / I-T17-2 阻塞 Undo 真实可用：用户决定是否立允许 gameplay 提供 Core RestoreState / Decree Issue
+- 若用户希望 AP 显示更准确（I-T18-3）：派 architect 设计 Ap 字段
+
+### 11.11 总结
+
+- ✅ 8 项 Gate 全部通过（全部 run-and-pass）
+- ✅ 0 compile error / 0 warning / **167/167 EditMode PASS**（含 28 个新增 HUD/Preview 测试）
+- ✅ 0 Core/Data 修改（§10.1 红线）
+- ✅ 0 新增 Unity Package（§13 红线）
+- ✅ 0 Push / 0 PR / 0 合并（§9 红线）
+- ✅ 工作区状态：分支 `agent/18-hud-and-preview`，HEAD = `145b38a` (test commit) on top of `4ef668b` (feat commit) on top of `b5ff4c5` (foundation commit)
+- ✅ AGENTS.md §11 邻居顺序确定性：4 个测试断言 (Y, X) 升序
+- ✅ BattleState 仍只读：grep 验证 0 写入操作
+
