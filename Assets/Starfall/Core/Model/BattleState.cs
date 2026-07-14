@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using Starfall.Core.Map.State;
 
 namespace Starfall.Core.Model
 {
@@ -13,6 +14,16 @@ namespace Starfall.Core.Model
         public int TurnNumber { get; set; }
         public Owner ActivePlayer { get; set; }
         public BoardState Board { get; }
+
+        /// <summary>
+        /// doc2 MAP-02 地图运行时唯一真相源。
+        /// 构造期初始化一次；只读 getter 保证外部无法整体替换，
+        /// 但其集合 / Version / ActiveLayer / GlobalCollapseValue 由 MAP-03 Command 改写。
+        /// 默认值：基于 (board.Width, board.Height, Reality, CV=0) 的空 MapDefinition + 空 MapState，
+        /// 保持 179+ 既有测试的向后兼容。
+        /// </summary>
+        public Starfall.Core.Map.State.MapState MapState { get; }
+
         private readonly List<UnitState> _units;
         public IReadOnlyList<UnitState> Units => _units;
 
@@ -54,7 +65,26 @@ namespace Starfall.Core.Model
         /// </summary>
         public GridPos? ExitTile { get; set; } = null;
 
+        /// <summary>
+        /// 4 参构造（向后兼容 179+ 既有测试）。
+        /// 内部转发到 5 参构造，mapState=null 走默认 MapState 回退分支。
+        /// </summary>
         public BattleState(int turnNumber, Owner activePlayer, BoardState board, IEnumerable<UnitState> units)
+            : this(turnNumber, activePlayer, board, units, null)
+        {
+        }
+
+        /// <summary>
+        /// 完整构造函数（含 <see cref="MapState"/>）。
+        /// <paramref name="mapState"/> 为 null 时回退到
+        /// (board.Width, board.Height, Reality, CV=0) 的默认空 MapState。
+        /// </summary>
+        public BattleState(
+            int turnNumber,
+            Owner activePlayer,
+            BoardState board,
+            IEnumerable<UnitState> units,
+            Starfall.Core.Map.State.MapState mapState)
         {
             if (turnNumber < 0)
                 throw new ArgumentException("TurnNumber must be >= 0", nameof(turnNumber));
@@ -70,6 +100,22 @@ namespace Starfall.Core.Model
             GuardsCompleted = 0;
             GuardsRequired = 3;
             ExitTile = null;
+
+            // MapState：null → 默认 (board.Width, board.Height, Reality, CV=0) 空 MapState。
+            if (mapState == null)
+            {
+                var defaultDef = new Starfall.Core.Map.State.MapDefinition(
+                    mapId: string.Empty,
+                    width: board.Width,
+                    height: board.Height,
+                    initialActiveLayer: Starfall.Core.Map.Coordinates.DimensionLayer.Reality,
+                    initialGlobalCollapseValue: 0);
+                MapState = new Starfall.Core.Map.State.MapState(defaultDef);
+            }
+            else
+            {
+                MapState = mapState;
+            }
         }
 
         public void AddUnit(UnitState u)
@@ -99,12 +145,18 @@ namespace Starfall.Core.Model
 
         /// <summary>
         /// PostStateHash：FNV-1a 64 位链式哈希，字段顺序严格按 ADR-0001 §Decision 3-4。
+        /// doc2 MAP-02：MapState.PostStateHash 字节先发（8 字节 LE），
+        /// 再发战斗字段字节（保持 ADR-0001 顺序）。
+        /// 公共契约不变（ulong getter、同名、同语义：相同逻辑状态 → 相同哈希）。
         /// </summary>
         public ulong PostStateHash
         {
             get
             {
                 ulong h = Fnv1aOffsetBasis;
+                // 0. doc2 MAP-02：MapState.PostStateHash 字节先发（8 字节 LE）。
+                h = MixUInt64(h, MapState.PostStateHash);
+                // 1-3 战斗字段保持 ADR-0001 顺序。
                 h = MixInt32(h, TurnNumber);
                 h = MixByte(h, (byte)ActivePlayer);
                 // 4.1 关卡阶段字段（Task 19）
@@ -199,6 +251,19 @@ namespace Starfall.Core.Model
             h = MixByte(h, (byte)((v >> 8) & 0xFF));
             h = MixByte(h, (byte)((v >> 16) & 0xFF));
             h = MixByte(h, (byte)((v >> 24) & 0xFF));
+            return h;
+        }
+
+        private static ulong MixUInt64(ulong h, ulong v)
+        {
+            h = MixByte(h, (byte)(v & 0xFF));
+            h = MixByte(h, (byte)((v >> 8) & 0xFF));
+            h = MixByte(h, (byte)((v >> 16) & 0xFF));
+            h = MixByte(h, (byte)((v >> 24) & 0xFF));
+            h = MixByte(h, (byte)((v >> 32) & 0xFF));
+            h = MixByte(h, (byte)((v >> 40) & 0xFF));
+            h = MixByte(h, (byte)((v >> 48) & 0xFF));
+            h = MixByte(h, (byte)((v >> 56) & 0xFF));
             return h;
         }
     }

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Starfall.Core.Map.State;
 
 namespace Starfall.Core.Model
 {
@@ -19,7 +20,16 @@ namespace Starfall.Core.Model
             foreach (var u in source.Units)
                 unitsCopy.Add(new UnitState(u.UnitId, u.Pos, u.Hp, u.MaxHp, u.Phase, u.Owner));
 
-            return new BattleState(source.TurnNumber, source.ActivePlayer, newBoard, unitsCopy)
+            // doc2 MAP-02：MapState 必须深拷贝；否则 Undo RestoreState / Replay Round-trip
+            // 会共享 MapState 集合引用，违反隔离原则。
+            var mapStateCopy = MapStateCloner.DeepClone(source.MapState);
+
+            return new BattleState(
+                source.TurnNumber,
+                source.ActivePlayer,
+                newBoard,
+                unitsCopy,
+                mapStateCopy)
             {
                 // _units 已在构造函数中填好
                 // Task 19 关卡闭环字段：阶段计数 / 门槛 / 撤离格独立拷贝
@@ -29,6 +39,9 @@ namespace Starfall.Core.Model
                 ExitTile = source.ExitTile.HasValue
                     ? new GridPos(source.ExitTile.Value.X, source.ExitTile.Value.Y)
                     : (GridPos?)null,
+                // MAP-02：BattleState.MapState 已通过 5 参构造注入（mapStateCopy）。
+                // Statuses / Anchors / Decrees：当前 BattleState 构造期初始化为空集合，
+                // 现有 BattleStateCloner 不复制这些；保留此限制直至 Task 19-完成（M-00 系列）。
             };
         }
     }
