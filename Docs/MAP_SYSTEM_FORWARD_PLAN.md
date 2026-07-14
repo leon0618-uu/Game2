@@ -3,7 +3,9 @@
 > Lead：`xingyuan-lead`（2026-07-14 09:32 GMT+8 起生效）
 > 输入：[`.incoming/doc1-core-systems.txt`](../.incoming/doc1-core-systems.txt) + [`.incoming/doc2-map-dev-plan.txt`](../.incoming/doc2-map-dev-plan.txt)（已由 xingyuan-architect 吸收为 [Docs/MAP_SYSTEM_AUDIT.md](MAP_SYSTEM_AUDIT.md)）
 > 路线：**Route A 增量升级**（保留 4 程序集 + `GridPos` / `BoardState` 命名 + `Assets/Starfall/Core/Map/` 新增子目录）
-> 状态（2026-07-14 13:27 GMT+8）：**MAP-01 + MAP-02 + MAP-06 已上线 main HEAD `ff0c641`**；ADR-0003 Status:**Accepted**；2 个 qa Gate PASS；本计划文档已与该状态同步。
+> 状态（2026-07-15 00:08 GMT+8）：**MAP-01 + MAP-02 + MAP-06 + MAP-04 已上线 main HEAD `9b8956b`**；ADR-0003 Status:**Accepted**；3 个 qa Gate PASS（MAP-04 为 Lead self-fix 报告）；本计划文档已与该状态同步。
+> 用户 2026-07-14 14:18 重申规则：**派单时需理清完整依赖链，不遗漏，每项需完成**。
+> 来源依赖链（18 项 MAP，每次派单必须列全）：见本 doc §2 P0 完成表 + [Docs/IMPLEMENTATION_STATUS.md §4.1](../IMPLEMENTATION_STATUS.md)（也可参考 memory/2026-07-15.md）。
 
 ## 1. 已批准决策
 
@@ -23,9 +25,12 @@
 | map-00-bugfix-bfs-neighbor-order | BFSPathfinder N→E→S→W | ✅ | `5cc4644` |
 | map-00-unblock-undo-restore-state | BattleRunner.RestoreState + Undo 集成测试 | ✅ | `617e332` |
 | map-01-grid-foundation | GridCoord / DimensionLayer / GridMap<T> / GridDirection / MapSize（61 测试） | ✅ | `1738269` |
-| **map-02-map-state** | MapDefinition + MapState + MapStateCloner + MapStateHasher + MapRegion/MapObjectInstance POCOs + BattleState/Cloner 集成 + ADR-0003 + 3 套 45 测试 | ✅ | `25e035b` |
-| **map-06-line-of-sight** | HeightLevel / MovementProfile / HeightTraversalService + CoverLevel / CoverDirection / CoverQueryService + ProjectileType / IHeightLookup / ICoverLookup / IBlockingLookup / LineOfSightService（Supercover + 6 Projectile + HighGround）+ 95 测试 | ✅ | `ff0c641` |
-| map-08-phase-flip | FlipTilePhaseCommand / FallResolutionService / PhaseCompressionResolutionService | ⏳ P0 候补（核心玩法） | — |
+| map-02-map-state | MapDefinition + MapState + MapStateCloner + MapStateHasher + MapRegion/MapObjectInstance POCOs + BattleState/Cloner 集成 + ADR-0003 + 3 套 45 测试 | ✅ | `25e035b` |
+| map-06-line-of-sight | HeightLevel / MovementProfile / HeightTraversalService + CoverLevel / CoverDirection / CoverQueryService + ProjectileType / IHeightLookup / ICoverLookup / IBlockingLookup / LineOfSightService（Supercover + 6 Projectile + HighGround）+ 95 测试 | ✅ | `ff0c641` |
+| **map-04-tile-definition** | TerrainType + TerrainDefinition/TerrainRegistry（11 地形） + TileTags [Flags]（22 标签） + Footprint（SingleCell/TwoByTwo/ThreeByThree） + TileDefinition/TileDefinitionRegistry + MapTileState runtime + LegacyTileStateAdapter（Core.Model.TileState enum 桥） + TileOccupancyService（attach 模式，Footprint × GridCoord.Layer 区分） + MapStateLookupAdapter（MapState → IHeightLookup/ICoverLookup/IBlockingLookup 三接口装配） + 9 fixture / 135 EditMode 测试 | ✅ | `9b8956b` |
+| map-05-pathfinding | A* + MapPassability + MovementRange（依赖 MAP-04 的 TileDefinition.BlocksMovement） | ⏳ 候补 | — |
+| map-07-dual-layer | 双层 TileState.PhasePairTileId（依赖 MAP-04 TileDefinition.PhasePairTileId） | ⏳ 候补 | — |
+| **map-08-phase-flip** | FlipTilePhaseCommand + FlipRegionPhaseCommand + FallResolutionService（查找最近合法落点：曼哈顿距离→Y→X→Layer） + PhaseCompressionResolutionService + 重构 FallingCommand 调用 FallResolutionService + 2 个事件 OnUnitEnteredVoid / OnUnitPhaseCompressed | ⏳ **P0 核心玩法最高优先级**（依赖 MAP-04 TileOccupancyService + MAP-04 TileDefinition 字段） | — |
 
 ## 3. 下一轮派活范围（待用户回执后立刻 spawn）
 
@@ -136,17 +141,18 @@
 
 ## 4. 待用户裁决的事项
 
-> MAP-02 + MAP-06 已完成（main HEAD `ff0c641`），下面 Q1-Q5 等用户裁决后再启动 MAP-08 下一轮。
+> MAP-02 + MAP-06 + **MAP-04** 已完成（main HEAD `9b8956b`，origin 已同步 23:04 GMT+8），**next package 待用户选**。
+> 18 项全局依赖链现状：5 ✅（MAP-01/02/04/06 + ADR-0003）+ 13 ⬜。
+> Lead 默认推荐：**MAP-08 相位翻转 + 坠落 + 实体挤压**（核心玩法最高优先级，现已依赖完备：MAP-04 TileOccupancyService + TileDefinition.BlocksMovement + TileDefinition.PhasePairTileId 字段）。
 
 | # | 决策 | Lead 默认假设 | 备注 |
 |---|---|---|---|
-| Q1 | 是否在 MAP-06 完成后立即启动 **MAP-08 相位翻转 + 坠落 + 实体挤压**（核心玩法，最高优先级，~2-3 天） | 否，每次一个任务包；MAP-06 完成后再问 | 与路线 A 一致 |
+| Q1 | 下一轮派哪个包？（3 选 1）<ul><li>**MAP-08** 相位翻转 + 坠落 + 实体挤压（核心玩法最高优先级，依赖 MAP-04）</li><li>MAP-05 A* + MapPassability + MovementRange（依赖 MAP-04 TileDefinition.BlocksMovement / BlocksProjectile）</li><li>MAP-07 双层 TileState.PhasePairTileId（依赖 MAP-04 TileDefinition.PhasePairTileId 字段）</li></ul> | MAP-08（核心玩法） | 用户 2026-07-14 18:03 起多次明示 `MAP-08` 最优；与路线 A 一致 |
 | Q2 | `MAP_DEV_PHASE_TEST_001`（12×14 双层）何时启动 | P2（route A 路线），等 MAP-17 阶段 | — |
 | Q3 | `agent/map-00-fix-battle-state-cloner`（14 BattleStateClonerTests）是否立单任务 | **用户 2026-07-14 12:38 GMT+8 明确不立**；保留为 unmerged 分支 | qa MAP-02 advisory #4 描述 |
-| Q4 | **MAP-04 TileDef**（map06 提供的 3 个 `IXxxLookup` 接口即为装配入口）何时启动 | 待 Q1 决议后由 Lead 提议 | qa MAP-06 推荐下个 |
-| Q5 | 推送到 origin/main 是否分批 | 一次性 push（含 2 个新合并提交） | AGENTS §9 push 需批准 |
+| Q4 | ⚠️ **MAP-04 已完成**（2026-07-14 23:05 GMT+8 全绿 + 上 main + push + 清理），不再在需决策列表中 | — | — |
+| Q5 | 文档同步是否需要加插图 / 流程图 / 表格（当前是纯文本） | 如您说需要，Lead 调用 `diagram-maker` skill 生成 SVG/HTML | 选仅："书" 即可 |
 | Q6 | `MVPPlayModeHelper.cs` 何时归入新 `Starfall.Editor` 程序集 | 与 MAP-16（路线编辑器）一起 | — |
-| Q5 | ADR-0003 由 architect 还是 gameplay 写 | architect（spec/标准文档） | — |
 
 ## 5. 文档交叉引用
 

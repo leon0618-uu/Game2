@@ -1,12 +1,12 @@
 # IMPLEMENTATION STATUS · MVP "断裂点三号"
 
-> 最后更新：2026-07-14
-> 状态：MVP 完成（Task 01-20）+ M5+ 地图系统 MAP-02 + MAP-06 上线（commit `ff0c641`）
-> 总测试：389 / 389 EditMode PASS · Core 依赖守卫 4 / 4 PASS · 0 新 compile warnings from MAP-02/MAP-06 paths（main 上有 3 个 pre-existing warning，详见 §5.3）
+> 最后更新：2026-07-15
+> 状态：MVP 完成（Task 01-20）+ M5+ 地图系统 MAP-02 + MAP-06 + **MAP-04** 上线（commit `9b8956b`）
+> 总测试：**524 / 524** EditMode PASS · Core 依赖守卫 4 / 4 PASS · 0 新 compile warnings from MAP-02/MAP-06/MAP-04 paths（main 上有 3 个 pre-existing warning，详见 §5.3）
 
 ## 1. 已完成功能
 
-### 1.1 Core（50 .cs · 含 MAP-02 + MAP-06 新增 16 个）
+### 1.1 Core（61 .cs · 含 MAP-02 + MAP-06 + MAP-04 新增 27 个）
 
 | 模块 | 文件 | 行数级别 | 状态 |
 |---|---|---|---|
@@ -24,6 +24,7 @@
 | **Map (MAP-01)** | GridCoord / GridDirection / GridMap / MapSize / DimensionLayer | 600+ | ✅ |
 | **Map (MAP-02)** | **MapDefinition / MapState / MapStateCloner / MapStateHasher / MapRegion / MapObjectInstance** | **680+** | **✅** |
 | **Map (MAP-06)** | **HeightLevel / MovementProfile / HeightTraversalService / CoverLevel / CoverDirection / CoverQueryService / ProjectileType / IHeightLookup / ICoverLookup / IBlockingLookup / LineOfSightService（Supercover 整数 LOS + 6 ProjectileType + HighGround）** | **900+** | **✅** |
+| **Map (MAP-04)** | **TerrainType / TerrainDefinition / TerrainRegistry / TileTags / Footprint / TileDefinition / TileDefinitionRegistry / MapTileState / LegacyTileStateAdapter / TileOccupancyService（attach 模式 + 跨 Layer） / MapStateLookupAdapter（MapState → IHeightLookup/ICoverLookup/IBlockingLookup 三接口装配）** | **1500+** | **✅** |
 
 ### 1.2 Data（9 .cs）
 
@@ -46,7 +47,7 @@
 | Camera | BattleCameraAutoSetup（场景无 Camera 时自动俯瞰） | ✅ |
 | Stub | StubBoardPresenter / StubBattleHud（保留 fallback，Task 17+18+19 已替代） | ⚠️ fallback |
 
-### 1.4 Tests EditMode（29 文件 / 389 测试 · 含 MAP-01 + MAP-02 + MAP-06 新增 217 测试）
+### 1.4 Tests EditMode（38 文件 / 524 测试 · 含 MAP-01 + MAP-02 + MAP-06 + MAP-04 新增 352 测试）
 
 | 测试集 | 测试数 | 内容 |
 |---|---|---|
@@ -71,15 +72,17 @@
 | **Map/Height（MAP-06）** | **40** | **HeightLevel (18) + MovementProfile (8) + HeightTraversal (14)** |
 | **Map/Cover（MAP-06）** | **20** | **CoverDirection (9) + CoverQuery (11)** |
 | **Map/LineOfSight（MAP-06）** | **35** | **LineOfSight (19) + ProjectileBlock (14) + HighGroundLineOfSight (12)** |
+| **Map/Tile（MAP-04）** | **135** | **TerrainDefinition (20) + TileDefinition (16) + TileDefinitionRegistry (15) + Footprint (12) + TileTags (11) + MapTileState (20) + LegacyTileStateAdapter (9) + MapStateLookupAdapter (14) + TileOccupancyService (18)** |
 | UndoIntegrationTests | 8 | 21-B Undo RestoreState 集成 |
 | Phase 19 单元扩展 | 12 | LevelLoopTests 同源增量 |
 | Phase 19 综合 | 17 | 同上组合 |
 
-**总计**：**389 / 389 EditMode PASS · 0 failed · 0 skipped**（main HEAD `ff0c641`）。
+**总计**：**524 / 524 EditMode PASS · 0 failed · 0 skipped**（main HEAD `9b8956b`）。
 
 qa Gate 独立报告：
 - MAP-02：[`docs/qa-reports/map-02-gate.md`](qa-reports/map-02-gate.md)
 - MAP-06：[`docs/qa-reports/map-06-gate.md`](qa-reports/map-06-gate.md)
+- MAP-04：[`docs/qa-reports/map-04-gate.md`](qa-reports/map-04-gate.md)（Lead self-fix report）
 
 ## 2. 提交链（main）
 
@@ -112,10 +115,12 @@ ce2391a9 merge: agent/18-hud-and-preview (Task 18 HUD 与预览) into main
   - `BattleRunner.RestoreState` + Undo 链路打通（commit `617e332`）
   - MAP-01 棋盘坐标基础 → `GridCoord` / `DimensionLayer` / `GridMap<T>` / `GridDirection` / `MapSize`（commit `1738269`，61 EditMode 测试）
   - MAP-02 MapState / DeepClone / Hash → main `25e035b`（45 新 EditMode 测试；ADR-0003 Status:**Accepted** `0acf39d`）
-  - **MAP-06 LOS**（Height + Cover + LineOfSight + ProjectileType + HighGround）→ main HEAD `ff0c641`（95 新 EditMode 测试；Commit 链 6 个：子目录 + 4 数据类型/服务 + Supercover LOS + 测试组 + Full Cover/CrossPhase 强化；qa Gate 在 `agent/qa-map-06-gate @ 06f972f` 独立跑 batchmode 389/389 PASS，8/8 Gate 详见 [`docs/qa-reports/map-06-gate.md`](qa-reports/map-06-gate.md)）
+  - MAP-06 LOS（Height + Cover + LineOfSight + ProjectileType + HighGround）→ main `ff0c641`（95 新 EditMode 测试）
+  - **MAP-04 TileDefinition + Terrain + Occupancy + Footprint + 22 Tags** → main HEAD `9b8956b`（135 新 EditMode 测试；Commit 链 3 个：feat + test + Lead fix；qa Gate 报告 Lead self-fix 524/524 PASS，详见 [`docs/qa-reports/map-04-gate.md`](qa-reports/map-04-gate.md)；主要提供 11 类地形 / 22 tile tags / 3 footprint 形状 / MapStateLookupAdapter 把 MapState 装配进 MAP-06 的 3 个 lookup 接口）
 - 下一步候选：
-  - MAP-04 TileDef（map06 提供的 3 个 `IXxxLookup` 接口即为装配入口）
-  - MAP-08 相位翻转 + 坠落 + 实体挤压（核心玩法，最高优先级）
+  - MAP-05 A\* 寻路 + MapPassability + MovementRange (依赖 MAP-04 的 TileDefinition.BlocksMovement)
+  - MAP-07 双层 TileState.PhasePairTileId (依赖 MAP-04 TileDefinition.PhasePairTileId 字段)
+  - MAP-08 相位翻转 + 坠落 + 实体挤压（**核心玩法最高优先级**，依赖 MAP-04 TileOccupancyService）
 
 详见审计与决策记录：
 
