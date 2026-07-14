@@ -46,6 +46,20 @@ namespace Starfall.Tests.EditMode.Map.Tile
                 }
             }
 
+            // MAP-04 setUp addition: register Astral layer too (occupancy cross-layer tests require it).
+            for (int x = 0; x < _size.Width; x++)
+            {
+                for (int y = 0; y < _size.Height; y++)
+                {
+                    var tileDefAstral = new TileDefinition(
+                        tileId: 10000 + y * _size.Width + x + 1,
+                        coord: new GridCoord(x, y, DimensionLayer.Astral),
+                        terrainType: TerrainRegistry.Plain.Type,
+                        terrain: TerrainRegistry.Plain);
+                    _registry.Register(tileDefAstral);
+                    _map.AddTile(tileDefAstral.Coord);
+                }
+            }
             TileOccupancyService.Clear();
             TileOccupancyService.AttachTileDefinitionRegistry(_map, _registry);
         }

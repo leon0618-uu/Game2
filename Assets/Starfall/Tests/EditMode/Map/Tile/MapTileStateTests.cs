@@ -1,4 +1,5 @@
 using NUnit.Framework;
+using System.Collections.Generic;
 using Starfall.Core.Map.Coordinates;
 using Starfall.Core.Map.Tile;
 
@@ -157,11 +158,11 @@ namespace Starfall.Tests.EditMode.Map.Tile
             state.AddEffect("OnFire");
             state.AddEffect("Frozen");
             Assert.AreEqual(2, state.ActiveMapEffects.Count);
-            Assert.IsTrue(state.ActiveMapEffects.Contains("OnFire"));
+            Assert.IsTrue(ContainsString(state.ActiveMapEffects, "OnFire"));
 
             Assert.IsTrue(state.RemoveEffect("OnFire"));
             Assert.AreEqual(1, state.ActiveMapEffects.Count);
-            Assert.IsFalse(state.ActiveMapEffects.Contains("OnFire"));
+            Assert.IsFalse(ContainsString(state.ActiveMapEffects, "OnFire"));
         }
 
         [Test]
@@ -219,6 +220,14 @@ namespace Starfall.Tests.EditMode.Map.Tile
             Assert.AreEqual(def, state.Definition);
             Assert.AreEqual(5, state.TileId);
             Assert.AreEqual(new GridCoord(2, 3), state.Coord);
+        }
+
+
+        private static bool ContainsString(IReadOnlyList<string> list, string value)
+        {
+            for (int i = 0; i < list.Count; i++)
+                if (string.Equals(list[i], value, System.StringComparison.Ordinal)) return true;
+            return false;
         }
     }
 }

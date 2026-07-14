@@ -95,9 +95,9 @@ namespace Starfall.Tests.EditMode.Map.Tile
         [Test]
         public void AstralTides_HaveHazardDamage()
         {
-            Assert.AreEqual(5, TerrainRegistry.ShalterAstralTide.HazardousDamagePerTurn);
+            Assert.AreEqual(5, TerrainRegistry.ShallowAstralTide.HazardousDamagePerTurn);
             Assert.AreEqual(15, TerrainRegistry.DeepAstralTide.HazardousDamagePerTurn);
-            Assert.IsTrue(TerrainRegistry.ShalterAstralTide.IsHazardous);
+            Assert.IsTrue(TerrainRegistry.ShallowAstralTide.IsHazardous);
             Assert.IsTrue(TerrainRegistry.DeepAstralTide.IsHazardous);
         }
 
@@ -175,7 +175,7 @@ namespace Starfall.Tests.EditMode.Map.Tile
             Assert.AreEqual(4, (byte)TerrainType.BrokenBridge);
             Assert.AreEqual(5, (byte)TerrainType.LightBridge);
             Assert.AreEqual(6, (byte)TerrainType.Void);
-            Assert.AreEqual(7, (byte)TerrainType.ShalterAstralTide);
+            Assert.AreEqual(7, (byte)TerrainType.ShallowAstralTide);
             Assert.AreEqual(8, (byte)TerrainType.DeepAstralTide);
             Assert.AreEqual(9, (byte)TerrainType.GateTile);
             Assert.AreEqual(10, (byte)TerrainType.AnchorTile);
@@ -230,7 +230,7 @@ namespace Starfall.Tests.EditMode.Map.Tile
         [Test]
         public void IsHazardous_DerivedFromHazardousDamagePerTurn()
         {
-            Assert.IsTrue(TerrainRegistry.ShalterAstralTide.IsHazardous);
+            Assert.IsTrue(TerrainRegistry.ShallowAstralTide.IsHazardous);
             Assert.IsFalse(TerrainRegistry.Plain.IsHazardous);
         }
 

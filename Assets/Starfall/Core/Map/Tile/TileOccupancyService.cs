@@ -361,7 +361,7 @@ namespace Starfall.Core.Map.Tile
                 }
 
                 // 3) 无 registry：回退到 MapState.Tiles（仅坐标匹配）。
-                if (!map.Tiles.Contains(coord)) return false;
+                if (!ContainsCoord(map.Tiles, coord)) return false;
                 // 4) 仍检查 RuntimeStates（如挂载）。
                 if (_runtimeStatesAttach.TryGetValue(map, out var states2)
                     && states2.TryGetValue(coord, out var ts2)
@@ -371,6 +371,15 @@ namespace Starfall.Core.Map.Tile
                 }
                 return true;
             }
+        }
+ 
+
+        // 兼容 IReadOnlyList.Contains 在某些 .NET 版本上的扩展方法歧义。
+        private static bool ContainsCoord(IReadOnlyList<GridCoord> list, GridCoord coord)
+        {
+            for (int i = 0; i < list.Count; i++)
+                if (list[i].Equals(coord)) return true;
+            return false;
         }
     }
 }
