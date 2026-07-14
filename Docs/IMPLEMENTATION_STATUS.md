@@ -1,30 +1,31 @@
 # IMPLEMENTATION STATUS · MVP "断裂点三号"
 
 > 最后更新：2026-07-15
-> 状态：MVP 完成（Task 01-20）+ M5+ 地图系统 MAP-02 + MAP-06 + **MAP-04** 上线（commit `9b8956b`）
-> 总测试：**524 / 524** EditMode PASS · Core 依赖守卫 4 / 4 PASS · 0 新 compile warnings from MAP-02/MAP-06/MAP-04 paths（main 上有 3 个 pre-existing warning，详见 §5.3）
+> 状态：MVP 完成（Task 01-20）+ M5+ 地图系统 **MAP-02 + MAP-06 + MAP-04 + MAP-08** 上线（commit `8538f48`，**核心玩法最高优先级**已完成）
+> 总测试：**596 / 596** EditMode PASS · Core 依赖守卫 4 / 4 PASS · 0 新 compile warnings from MAP-02/MAP-04/MAP-06/MAP-08 paths（main 上有 3 个 pre-existing warning，详见 §5.3）
 
 ## 1. 已完成功能
 
-### 1.1 Core（61 .cs · 含 MAP-02 + MAP-06 + MAP-04 新增 27 个）
+### 1.1 Core（68 .cs · 含 MAP-02 + MAP-04 + MAP-06 + MAP-08 新增 34 个）
 
 | 模块 | 文件 | 行数级别 | 状态 |
 |---|---|---|---|
 | Model | BattleState / BoardState / UnitState / TileSnapshot / Enums / Cloner / Comparer | 200+ | ✅ |
 | Hash | GridPos / GridPosComparer | 60+ | ✅ |
-| Command | ICommand / CommandExecutor / CommandResult / BattleEvent | 100+ | ✅ |
+| Command | ICommand / CommandExecutor / CommandResult / **BattleEvent（含 UnitEnteredVoid / UnitPhaseCompressed）** | 100+ | ✅ |
 | Move | MoveCommand + BFSPathfinder（邻居已统一为 N→E→S→W） | 130+ | ✅ |
 | Status | StatusKind / StatusInstance / ApplyStatusCommand / RemoveStatusCommand / TickEndTurnCommand | 200+ | ✅ |
 | Combat | BattleOutcome / BattleRunner / EventSink / IEnemyAI / SimpleEnemyAI / ImprovedEnemyAI / DamageFormula / WinConditionChecker / **ObjectivePhase + ObjectivePhaseUpdater** | 600+ | ✅ |
 | Anchor | AnchorRegistry / AnchorZone | 80+ | ✅ |
 | Decree | Decree / DecreeKind / DecreeRegistry / ApplyDecreeCommand | 100+ | ✅ |
-| Rules | FallingCommand / CrushResolver / PhaseFlipValidator | 120+ | ✅ |
+| Rules | **FallingCommand (重构为调 FallResolutionService) / CrushResolver / PhaseFlipValidator** | 200+ | ✅ |
 | Replay | CommandRecord / CommandRecorder / ReplayPlayer / ReplayCodec / ReplayEntry / ReplayFile / ReplayException | 300+ | ✅ |
 | Undo | UndoStack | 50+ | ✅ |
 | **Map (MAP-01)** | GridCoord / GridDirection / GridMap / MapSize / DimensionLayer | 600+ | ✅ |
 | **Map (MAP-02)** | **MapDefinition / MapState / MapStateCloner / MapStateHasher / MapRegion / MapObjectInstance** | **680+** | **✅** |
 | **Map (MAP-06)** | **HeightLevel / MovementProfile / HeightTraversalService / CoverLevel / CoverDirection / CoverQueryService / ProjectileType / IHeightLookup / ICoverLookup / IBlockingLookup / LineOfSightService（Supercover 整数 LOS + 6 ProjectileType + HighGround）** | **900+** | **✅** |
 | **Map (MAP-04)** | **TerrainType / TerrainDefinition / TerrainRegistry / TileTags / Footprint / TileDefinition / TileDefinitionRegistry / MapTileState / LegacyTileStateAdapter / TileOccupancyService（attach 模式 + 跨 Layer） / MapStateLookupAdapter（MapState → IHeightLookup/ICoverLookup/IBlockingLookup 三接口装配）** | **1500+** | **✅** |
+| **Map (MAP-08)** | **IMapCommand (MAP-03 stub) / MapCommandResult / PhaseFlipStateService (attach 模式，per-map flipped tile 字典) / FlipTilePhaseCommand / FlipRegionPhaseCommand / FallResolutionService (曼哈顿 + CompareTo 排序)/ PhaseCompressionResolutionService (4-邻居 N→E→S→W + Manhattan=2 环回退)** | **600+** | **✅** |
 
 ### 1.2 Data（9 .cs）
 
@@ -47,7 +48,7 @@
 | Camera | BattleCameraAutoSetup（场景无 Camera 时自动俯瞰） | ✅ |
 | Stub | StubBoardPresenter / StubBattleHud（保留 fallback，Task 17+18+19 已替代） | ⚠️ fallback |
 
-### 1.4 Tests EditMode（38 文件 / 524 测试 · 含 MAP-01 + MAP-02 + MAP-06 + MAP-04 新增 352 测试）
+### 1.4 Tests EditMode（44 文件 / 596 测试 · 含 MAP-01 + MAP-02 + MAP-04 + MAP-06 + MAP-08 新增 424 测试）
 
 | 测试集 | 测试数 | 内容 |
 |---|---|---|
@@ -73,16 +74,18 @@
 | **Map/Cover（MAP-06）** | **20** | **CoverDirection (9) + CoverQuery (11)** |
 | **Map/LineOfSight（MAP-06）** | **35** | **LineOfSight (19) + ProjectileBlock (14) + HighGroundLineOfSight (12)** |
 | **Map/Tile（MAP-04）** | **135** | **TerrainDefinition (20) + TileDefinition (16) + TileDefinitionRegistry (15) + Footprint (12) + TileTags (11) + MapTileState (20) + LegacyTileStateAdapter (9) + MapStateLookupAdapter (14) + TileOccupancyService (18)** |
+| **Map/Commands（MAP-08）** | **72** | **FlipTilePhase (15) + FlipRegionPhase (11) + FallResolution (18) + PhaseCompression (12) + MultiTilePhaseFlip (8) + FallingCommandCompat (8)** |
 | UndoIntegrationTests | 8 | 21-B Undo RestoreState 集成 |
 | Phase 19 单元扩展 | 12 | LevelLoopTests 同源增量 |
 | Phase 19 综合 | 17 | 同上组合 |
 
-**总计**：**524 / 524 EditMode PASS · 0 failed · 0 skipped**（main HEAD `9b8956b`）。
+**总计**：**596 / 596 EditMode PASS · 0 failed · 0 skipped**（main HEAD `8538f48`，**MAP-08 核心玩法已上**）。
 
 qa Gate 独立报告：
 - MAP-02：[`docs/qa-reports/map-02-gate.md`](qa-reports/map-02-gate.md)
 - MAP-06：[`docs/qa-reports/map-06-gate.md`](qa-reports/map-06-gate.md)
 - MAP-04：[`docs/qa-reports/map-04-gate.md`](qa-reports/map-04-gate.md)（Lead self-fix report）
+- MAP-08：[`docs/qa-reports/map-08-gate.md`](qa-reports/map-08-gate.md)（Lead spot-verify note）
 
 ## 2. 提交链（main）
 
@@ -116,11 +119,15 @@ ce2391a9 merge: agent/18-hud-and-preview (Task 18 HUD 与预览) into main
   - MAP-01 棋盘坐标基础 → `GridCoord` / `DimensionLayer` / `GridMap<T>` / `GridDirection` / `MapSize`（commit `1738269`，61 EditMode 测试）
   - MAP-02 MapState / DeepClone / Hash → main `25e035b`（45 新 EditMode 测试；ADR-0003 Status:**Accepted** `0acf39d`）
   - MAP-06 LOS（Height + Cover + LineOfSight + ProjectileType + HighGround）→ main `ff0c641`（95 新 EditMode 测试）
-  - **MAP-04 TileDefinition + Terrain + Occupancy + Footprint + 22 Tags** → main HEAD `9b8956b`（135 新 EditMode 测试；Commit 链 3 个：feat + test + Lead fix；qa Gate 报告 Lead self-fix 524/524 PASS，详见 [`docs/qa-reports/map-04-gate.md`](qa-reports/map-04-gate.md)；主要提供 11 类地形 / 22 tile tags / 3 footprint 形状 / MapStateLookupAdapter 把 MapState 装配进 MAP-06 的 3 个 lookup 接口）
-- 下一步候选：
+  - MAP-04 TileDefinition + Terrain + Occupancy + Footprint + 22 Tags → main `9b8956b`（135 新 EditMode 测试）
+  - **MAP-08 Phase Flip + Fall + Crush（核心玩法最高优先级）** → main HEAD `8538f48`（72 新 EditMode 测试；Commit 链 1 个：feat 综合提交；提供 IMapCommand stub + MapCommandResult + PhaseFlipStateService（attach 模式）/ FlipTilePhaseCommand + FlipRegionPhaseCommand (atomic + PhaseLocked/PhaseFlippable 验证)/ FallResolutionService (曼哈顿 + CompareTo 排序)/ PhaseCompressionResolutionService (4-邻居 N→E→S→W + Manhattan=2 环回退)/ FallingCommand 重构调 FallResolutionService + 2 新 BattleEvent UnitEnteredVoid/UnitPhaseCompressed；详见 [`docs/qa-reports/map-08-gate.md`](qa-reports/map-08-gate.md)）
+- 下一步候选（按核心性排序）：
+  - **MAP-07 双层 TileState.PhasePairTileId** (依赖 MAP-04 TileDefinition.PhasePairTileId 字段已就位；MAP-08 PhaseFlipStateService 可平滑并入 per-tile ActiveDimension)
   - MAP-05 A\* 寻路 + MapPassability + MovementRange (依赖 MAP-04 的 TileDefinition.BlocksMovement)
-  - MAP-07 双层 TileState.PhasePairTileId (依赖 MAP-04 TileDefinition.PhasePairTileId 字段)
-  - MAP-08 相位翻转 + 坠落 + 实体挤压（**核心玩法最高优先级**，依赖 MAP-04 TileOccupancyService）
+  - MAP-09 MapRegion 完整化（已有 placeholder，依赖 MAP-07 完成后）
+  - MAP-10 MapObject + MapObjectStateMachine + 12 ObjectTypes（重型，超 3-4 天预算）
+  - MAP-11 CV (Corruption Value)
+  - MAP-12 AnchorLink + ConstellationPolygon（整数 + 自相交拒绝）
 
 详见审计与决策记录：
 

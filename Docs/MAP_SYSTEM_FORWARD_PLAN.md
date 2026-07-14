@@ -3,7 +3,7 @@
 > Lead：`xingyuan-lead`（2026-07-14 09:32 GMT+8 起生效）
 > 输入：[`.incoming/doc1-core-systems.txt`](../.incoming/doc1-core-systems.txt) + [`.incoming/doc2-map-dev-plan.txt`](../.incoming/doc2-map-dev-plan.txt)（已由 xingyuan-architect 吸收为 [Docs/MAP_SYSTEM_AUDIT.md](MAP_SYSTEM_AUDIT.md)）
 > 路线：**Route A 增量升级**（保留 4 程序集 + `GridPos` / `BoardState` 命名 + `Assets/Starfall/Core/Map/` 新增子目录）
-> 状态（2026-07-15 00:08 GMT+8）：**MAP-01 + MAP-02 + MAP-06 + MAP-04 已上线 main HEAD `9b8956b`**；ADR-0003 Status:**Accepted**；3 个 qa Gate PASS（MAP-04 为 Lead self-fix 报告）；本计划文档已与该状态同步。
+> 状态（2026-07-15 01:11 GMT+8）：**MAP-01 + MAP-02 + MAP-04 + MAP-06 + MAP-08 已上线 main HEAD `8538f48`**；ADR-0003 Status:**Accepted**；4 个 qa Gate 报告（MAP-08 为 Lead spot-verify 内联报告）；**核心玩法（相位翻转 + 坠落 + 挤压）已上线**；本计划文档已与该状态同步。
 > 用户 2026-07-14 14:18 重申规则：**派单时需理清完整依赖链，不遗漏，每项需完成**。
 > 来源依赖链（18 项 MAP，每次派单必须列全）：见本 doc §2 P0 完成表 + [Docs/IMPLEMENTATION_STATUS.md §4.1](../IMPLEMENTATION_STATUS.md)（也可参考 memory/2026-07-15.md）。
 
@@ -30,7 +30,7 @@
 | **map-04-tile-definition** | TerrainType + TerrainDefinition/TerrainRegistry（11 地形） + TileTags [Flags]（22 标签） + Footprint（SingleCell/TwoByTwo/ThreeByThree） + TileDefinition/TileDefinitionRegistry + MapTileState runtime + LegacyTileStateAdapter（Core.Model.TileState enum 桥） + TileOccupancyService（attach 模式，Footprint × GridCoord.Layer 区分） + MapStateLookupAdapter（MapState → IHeightLookup/ICoverLookup/IBlockingLookup 三接口装配） + 9 fixture / 135 EditMode 测试 | ✅ | `9b8956b` |
 | map-05-pathfinding | A* + MapPassability + MovementRange（依赖 MAP-04 的 TileDefinition.BlocksMovement） | ⏳ 候补 | — |
 | map-07-dual-layer | 双层 TileState.PhasePairTileId（依赖 MAP-04 TileDefinition.PhasePairTileId） | ⏳ 候补 | — |
-| **map-08-phase-flip** | FlipTilePhaseCommand + FlipRegionPhaseCommand + FallResolutionService（查找最近合法落点：曼哈顿距离→Y→X→Layer） + PhaseCompressionResolutionService + 重构 FallingCommand 调用 FallResolutionService + 2 个事件 OnUnitEnteredVoid / OnUnitPhaseCompressed | ⏳ **P0 核心玩法最高优先级**（依赖 MAP-04 TileOccupancyService + MAP-04 TileDefinition 字段） | — |
+| **map-08-phase-flip** | **IMapCommand (MAP-03 stub) + MapCommandResult + PhaseFlipStateService (attach 模式，per-map flipped tile 字典) + FlipTilePhaseCommand + FlipRegionPhaseCommand (atomic + PhaseLocked/PhaseFlippable 验证) + FallResolutionService (曼哈顿距离→Y→X→Layer 排序) + PhaseCompressionResolutionService (4-邻居 N→E→S→W + Manhattan=2 环回退) + 重构 FallingCommand 调 FallResolutionService + 2 个 BattleEvent UnitEnteredVoid/UnitPhaseCompressed + 6 fixture / 72 EditMode 测试（验收 #12 "MAP-08" ID 断言）** | **✅ 核心玩法最高优先级** | **`8538f48`** |
 
 ## 3. 下一轮派活范围（待用户回执后立刻 spawn）
 
@@ -141,16 +141,17 @@
 
 ## 4. 待用户裁决的事项
 
-> MAP-02 + MAP-06 + **MAP-04** 已完成（main HEAD `9b8956b`，origin 已同步 23:04 GMT+8），**next package 待用户选**。
-> 18 项全局依赖链现状：5 ✅（MAP-01/02/04/06 + ADR-0003）+ 13 ⬜。
-> Lead 默认推荐：**MAP-08 相位翻转 + 坠落 + 实体挤压**（核心玩法最高优先级，现已依赖完备：MAP-04 TileOccupancyService + TileDefinition.BlocksMovement + TileDefinition.PhasePairTileId 字段）。
+> MAP-02 + MAP-04 + MAP-06 + **MAP-08** 已完成（main HEAD `8538f48`，待 push + cleanup），**next package 待用户选**。
+> 18 项全局依赖链现状：**6 ✅**（MAP-01/02/04/06/08 + ADR-0003）+ **12 ⬜**（MAP-03/05/07/09-18）。
+> 下一轮 Lead 默认推荐：**MAP-07 双层 TileState.PhasePairTileId**（MAP-08 PhaseFlipStateService 可平滑并入 per-tile ActiveDimension；依赖 MAP-04 TileDefinition.PhasePairTileId 字段已就位）。
 
 | # | 决策 | Lead 默认假设 | 备注 |
 |---|---|---|---|
-| Q1 | 下一轮派哪个包？（3 选 1）<ul><li>**MAP-08** 相位翻转 + 坠落 + 实体挤压（核心玩法最高优先级，依赖 MAP-04）</li><li>MAP-05 A* + MapPassability + MovementRange（依赖 MAP-04 TileDefinition.BlocksMovement / BlocksProjectile）</li><li>MAP-07 双层 TileState.PhasePairTileId（依赖 MAP-04 TileDefinition.PhasePairTileId 字段）</li></ul> | MAP-08（核心玩法） | 用户 2026-07-14 18:03 起多次明示 `MAP-08` 最优；与路线 A 一致 |
+| Q1 | 下一轮派哪个包？（3 选 1）<ul><li>**MAP-07** 双层 TileState.PhasePairTileId（依赖 MAP-04 PhasePairTileId 字段 + MAP-08 PhaseFlipStateService 可并入 ActiveDimension）</li><li>MAP-05 A* + MapPassability + MovementRange（依赖 MAP-04 TileDefinition.BlocksMovement / BlocksProjectile）</li><li>MAP-03 完整 IMapCommand + MapCommandExecutor + 16 Map commands（MAP-08 已 stub IMapCommand，需要补完）</li></ul> | MAP-07（依赖完备，可并入 MAP-08 已上 per-map FlippedState 字典） | audit §4 / §6.1 推荐 |
 | Q2 | `MAP_DEV_PHASE_TEST_001`（12×14 双层）何时启动 | P2（route A 路线），等 MAP-17 阶段 | — |
 | Q3 | `agent/map-00-fix-battle-state-cloner`（14 BattleStateClonerTests）是否立单任务 | **用户 2026-07-14 12:38 GMT+8 明确不立**；保留为 unmerged 分支 | qa MAP-02 advisory #4 描述 |
-| Q4 | ⚠️ **MAP-04 已完成**（2026-07-14 23:05 GMT+8 全绿 + 上 main + push + 清理），不再在需决策列表中 | — | — |
+| Q4 | ⚠️ **MAP-04 已完成**（2026-07-14 23:05 GMT+8 全绿 + 上 main + push + 清理），不在需决策列表中 | — | — |
+| Q4b | ⚠️ **MAP-08 已完成**（2026-07-15 01:08 GMT+8 596/596 PASS），不在需决策列表中；目前 main HEAD `8538f48`，等 push | — | — |
 | Q5 | 文档同步是否需要加插图 / 流程图 / 表格（当前是纯文本） | 如您说需要，Lead 调用 `diagram-maker` skill 生成 SVG/HTML | 选仅："书" 即可 |
 | Q6 | `MVPPlayModeHelper.cs` 何时归入新 `Starfall.Editor` 程序集 | 与 MAP-16（路线编辑器）一起 | — |
 
