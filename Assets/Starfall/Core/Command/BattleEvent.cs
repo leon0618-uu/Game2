@@ -17,6 +17,8 @@ namespace Starfall.Core.Command
         UnitCrushed = 10,        // 新增
         ObjectiveAdvanced = 11, // Task 19: Guard → Retreat 推进
         RetreatComplete = 12,   // Task 19: 撤离完成（所有 Player 到达 ExitTile 邻接）
+        UnitEnteredVoid = 13,   // doc2 MAP-08: 单位进入 Void tile（FallResolutionService 落地成功路径）
+        UnitPhaseCompressed = 14, // doc2 MAP-08: 单位被相位挤压弹回（PhaseCompressionResolutionService 触发）
     }
 
     /// <summary>
