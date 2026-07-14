@@ -158,6 +158,115 @@ namespace Starfall.Core.Map.LineOfSight
             return ComputeProjectileInternal(map.Definition.Size, from, to, projectile, heights, covers, blocking);
         }
 
+        // ──────────── MAP-07 双层跨相位视线 (CrossPhase LOS) ────────────
+
+        /// <summary>
+        /// doc2 MAP-07 双层跨相位视线（CrossPhase LOS overload）。
+        /// <para/>
+        /// **与 <see cref="ComputeProjectileLOS"/> 的区别**：
+        /// <list type="bullet">
+        /// <item><see cref="ComputeProjectileLOS"/> + <see cref="ProjectileType.CrossPhase"/>
+        ///       只走"几何路径投影"（每段 leg 强制 Layer 一致）。</item>
+        /// <item><b>本方法</b>在 <b>MAP-07 per-tile ActiveDimension</b> 上下文下判定
+        ///       — from / to 若分属不同 ActiveDimension（同坐标不同 tile），使用
+        ///       <see cref="CrossPhaseTilePair"/> 路径；同 ActiveDimension 退化为
+        ///       <see cref="ComputeLineOfSight"/>。</item>
+        /// </list>
+        /// <para/>
+        /// **覆盖 / 阻挡规则**（与 <see cref="ProjectileType.CrossPhase"/> 一致）：
+        /// <list type="bullet">
+        /// <item>Full Cover 仍阻挡（必须遮蔽）。</item>
+        /// <item>Half Cover 在跨层时被忽略（穿透）。</item>
+        /// <item>CrossPhase 不算 High Ground（即使 attacker.Height ≥ defender.Height + 1）。</item>
+        /// </list>
+        /// <para/>
+        /// **pair 解析**：若 <paramref name="pairLookup"/> 提供同 (X,Y) 跨层 tile 的互链对，
+        /// 直接命中（投影距离 0）。否则按直线扫描到 to.Coord 在 to.Layer 上的等值 (X,Y)。
+        /// </summary>
+        public static Result ComputeCrossPhaseLOS(
+            MapState map,
+            GridCoord from,
+            GridCoord to,
+            IHeightLookup heights,
+            ICoverLookup covers,
+            IBlockingLookup blocking,
+            CrossPhaseTilePair pairLookup)
+        {
+            if (map == null) throw new ArgumentNullException(nameof(map));
+            // CrossPhaseTilePair 是 readonly struct，本身不能为 null——但其内部 delegate 可能为 null。
+            if (pairLookup.TryProject == null) throw new ArgumentNullException(nameof(pairLookup));
+
+            // 同 tile → 必清晰
+            if (from == to) return Result.Clear;
+
+            // 同 Layer 退化为 ComputeLineOfSight（不区分 ActiveDimension）
+            if (from.Layer == to.Layer)
+            {
+                return ComputeLineOfSight(map, from, to, heights, covers, blocking);
+            }
+
+            // 跨 Layer：先看 from/to 是否互为 pair（同坐标）
+            if (from.X == to.X && from.Y == to.Y)
+            {
+                // 同 (X, Y) 不同 Layer — CrossPhase 直接命中。
+                // 但 CrossPhase 仍要看 to 那侧的掩体 + from 那侧的阻挡。
+                // 路径：从 from.Layer 投影到 to.Layer 是 0 距离；跨层 Full Cover 仍挡。
+                // 简化：to 上的 Full Cover 视作阻挡 → 返 (false, blockers=[to])。
+                CoverLevel coverTo = covers?.GetCover(to) ?? CoverLevel.None;
+                if (coverTo == CoverLevel.Full)
+                {
+                    return new Result(false, false, 0, new List<GridCoord> { to });
+                }
+                // 跨层覆盖 = Half Cover 视作穿透（不再算 penalty）
+                // 不算 High Ground（同 layer 都不算，更别说跨层）
+                return Result.Clear;
+            }
+
+            // 跨 Layer 非 pair：先尝试几何 leg1 + leg2（与 ComputeProjectileLOS(CrossPhase) 一致）。
+            // leg 1: from → (to.X, to.Y, from.Layer)
+            // leg 2: (from.X, from.Y, to.Layer) → to
+            var leg1End = new GridCoord(to.X, to.Y, from.Layer);
+            var leg2Start = new GridCoord(from.X, from.Y, to.Layer);
+
+            // 越界检查：用 map.Definition.Size
+            if (!leg1End.IsInBounds(map.Definition.Size)
+                || !leg2Start.IsInBounds(map.Definition.Size))
+            {
+                return new Result(false, false, 0, new List<GridCoord> { to });
+            }
+
+            var r1 = ComputeDirectInternal(map.Definition.Size, from, leg1End, heights, covers, blocking);
+            if (!r1.HasLineOfSight)
+            {
+                return r1;
+            }
+            var r2 = ComputeDirectInternal(map.Definition.Size, leg2Start, to, heights, covers, blocking);
+            if (!r2.HasLineOfSight)
+            {
+                return r2;
+            }
+
+            // 跨层成功：Half Cover 穿透，Full Cover 在 r2 中失败（已返回）。
+            return new Result(
+                hasLineOfSight: true,
+                hasHighGroundBonus: false,
+                coverPenalty: 0, // CrossPhase 跨层忽略 Half Cover
+                blockingTiles: Array.Empty<GridCoord>());
+        }
+
+        /// <summary>同 (X, Y) 双层 tile 的 pair 解析器（MAP-07 接线）。</summary>
+        public readonly struct CrossPhaseTilePair
+        {
+            /// <summary>尝试把 <paramref name="c"/> 投影到另一层；true + <paramref name="paired"/> 表示存在 pair tile。</summary>
+            /// <remarks>由 <see cref="Starfall.Core.Map.Tile.PhasePair.PhasePairLookup"/> 提供实现。</remarks>
+            public readonly TryProjectDelegate TryProject;
+            public CrossPhaseTilePair(TryProjectDelegate tryProject)
+            {
+                TryProject = tryProject;
+            }
+            public delegate bool TryProjectDelegate(GridCoord c, out GridCoord paired);
+        }
+
         // ──────────── 内部：Direct 实现 ────────────
 
         private static Result ComputeDirectInternal(
