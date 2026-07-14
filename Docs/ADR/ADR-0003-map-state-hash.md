@@ -1,6 +1,6 @@
 # ADR-0003: MapState 哈希契约（深拷贝 + 确定性 FNV-1a）
 
-- **状态**：Proposed（将在 `agent/map-02-map-state` 实现通过 [MAP_SYSTEM_FORWARD_PLAN §3.4](../../Docs/MAP_SYSTEM_FORWARD_PLAN.md#34-验收标准) Gate 后升为 Accepted）
+- **状态**：**Accepted**（2026-07-14，MAP-02 gameplay commit `3d9a9b1` + qa Gate `agent/qa-map-02-gate` @ `5365adf` 独立 294/294 PASS、Hash_IsStable_Over100Runs PASS、Core 依赖守卫 4/4 PASS；用户裁决 2026-07-14 11:35 GMT+8）
 - **日期**：2026-07-14
 - **作者**：xingyuan-architect
 - **关联任务包**：MAP-02 `agent/map-02-map-state`（Route A 增量升级）
