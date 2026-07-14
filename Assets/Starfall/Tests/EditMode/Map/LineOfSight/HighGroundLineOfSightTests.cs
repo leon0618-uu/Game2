@@ -30,7 +30,7 @@ namespace Starfall.Tests.EditMode.Map.LineOfSight
         }
 
         private static MapState MakeMap(int w = 16, int h = 16)
-            => new MapState(new MapDefinition("test.map", w, h));
+            => new MapState(new MapDefinition("test.map", w, h, DimensionLayer.Reality, 0));
 
         [Test]
         public void AttackerHigher_ByOne_HasHighGroundBonus()
@@ -154,10 +154,10 @@ namespace Starfall.Tests.EditMode.Map.LineOfSight
         }
 
         [Test]
-        public void HighGround_FullCover_StillPenalty()
+        public void HighGround_FullCover_StillBlocks()
         {
-            // High Ground 不豁免 Full Cover（设计取舍：Full Cover 仍给 penalty=2，
-            // 由调用方决定是否在 high ground 时仍将其视为挡视线）
+            // Full Cover 必挡（即使有 high ground，墙就是墙）；
+            // 但 HasHighGroundBonus 仍可独立成立（标记"应该高打低"的位置关系）。
             var map = MakeMap();
             var heights = new DictHeightLookup(new Dictionary<GridCoord, int>
             {
@@ -170,8 +170,9 @@ namespace Starfall.Tests.EditMode.Map.LineOfSight
             });
             var r = LineOfSightService.ComputeLineOfSight(
                 map, new GridCoord(5, 5), new GridCoord(6, 5), heights, covers, null);
+            Assert.IsFalse(r.HasLineOfSight);
             Assert.IsTrue(r.HasHighGroundBonus);
-            Assert.AreEqual(2, r.CoverPenalty); // Full 仍给 2
+            Assert.AreEqual(0, r.CoverPenalty); // 视线失败 → 无 penalty
         }
     }
 }

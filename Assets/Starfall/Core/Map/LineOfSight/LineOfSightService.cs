@@ -1,6 +1,7 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Starfall.Core.Map.Coordinates;
+using Starfall.Core.Map.Cover;
 using Starfall.Core.Map.Height;
 using Starfall.Core.Map.State;
 
@@ -204,18 +205,21 @@ namespace Starfall.Core.Map.LineOfSight
             int toH = heights?.GetHeight(to) ?? 0;
             bool highGround = fromH - toH >= 1;
 
-            // 掩体惩罚（仅看 defender tile）
-            CoverLevel cover = covers?.GetCover(to) ?? Cover.CoverLevel.None;
-            int penalty = 0;
-            if (!highGround)
+            // 掩体（仅看 defender tile）
+            CoverLevel cover = covers?.GetCover(to) ?? CoverLevel.None;
+
+            // Full Cover 必挡（无论 high ground，墙就是墙）
+            if (cover == CoverLevel.Full)
             {
-                if (cover == Cover.CoverLevel.Half) penalty = 1;
-                else if (cover == Cover.CoverLevel.Full) penalty = 2;
+                var fullBlocker = new List<GridCoord> { to };
+                return new Result(false, highGround, 0, fullBlocker);
             }
-            else
+
+            // Half Cover：high ground 时忽略，否则 penalty=1
+            int penalty = 0;
+            if (cover == CoverLevel.Half && !highGround)
             {
-                // 高地：忽略 Half Cover；Full 仍给 penalty 但实际上由调用方决定是否忽略
-                if (cover == Cover.CoverLevel.Full) penalty = 2;
+                penalty = 1;
             }
 
             return new Result(true, highGround, penalty, Array.Empty<GridCoord>());
@@ -245,22 +249,23 @@ namespace Starfall.Core.Map.LineOfSight
                 return ComputeDirectInternal(size, fromG, toG, groundHeights, covers, groundBlocking);
             }
 
-            // CrossPhase：先走 attacker.Layer，再走 defender.Layer
+            // CrossPhase：弹道跨相位。分两段：
+            //   Leg 1：在 attacker.Layer 走 (from → (to.X, to.Y, from.Layer))
+            //   Leg 2：在 defender.Layer 走 ((from.X, from.Y, to.Layer) → to)
+            // 表示弹道从 attacker 处跨相位进入 defender 所在维度。
             if (projectile == ProjectileType.CrossPhase)
             {
-                var firstLeg = from;
-                var secondLeg = new GridCoord(to.X, to.Y, from.Layer);
-                // 中间点：attacker.Layer 的 defender (X,Y)
-                var mid = secondLeg;
-                var r1 = ComputeDirectInternal(size, firstLeg, mid, heights, covers, blocking);
+                // Leg 1：attacker.Layer
+                var leg1End = new GridCoord(to.X, to.Y, from.Layer);
+                var r1 = ComputeDirectInternal(size, from, leg1End, heights, covers, blocking);
                 if (!r1.HasLineOfSight) return r1;
 
-                // 切换到 defender 原始 Layer，再走一遍
-                var r2 = ComputeDirectInternal(size, mid, to, heights, covers, blocking);
+                // Leg 2：defender.Layer
+                var leg2Start = new GridCoord(from.X, from.Y, to.Layer);
+                var r2 = ComputeDirectInternal(size, leg2Start, to, heights, covers, blocking);
                 if (!r2.HasLineOfSight) return r2;
 
-                // 取 r2 的高地 + 惩罚（mid 高度可能不同）
-                // 但 highGround 仍由 attacker / defender 跨层决定 → CrossPhase 不算 high ground
+                // CrossPhase 跨层 → 不算 high ground；惩罚取 defender tile 的掩体（Leg 2）。
                 return new Result(
                     hasLineOfSight: true,
                     hasHighGroundBonus: false,

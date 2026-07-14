@@ -39,7 +39,7 @@ namespace Starfall.Tests.EditMode.Map.LineOfSight
 
         private static MapState MakeMap(int w = 16, int h = 16)
         {
-            var def = new MapDefinition("test.map", w, h);
+            var def = new MapDefinition("test.map", w, h, DimensionLayer.Reality, 0);
             return new MapState(def);
         }
 
