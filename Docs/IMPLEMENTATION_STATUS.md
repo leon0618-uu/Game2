@@ -1,12 +1,12 @@
 # IMPLEMENTATION STATUS · MVP "断裂点三号"
 
 > 最后更新：2026-07-14
-> 状态：MVP 完成（Task 01-20）+ M5+ 地图系统 MAP-02 上线（commit `25e035b`）
-> 总测试：294 / 294 EditMode PASS · Core 依赖守卫 4 / 4 PASS · 0 新 compile warnings from MAP-02 paths（main 上有 3 个 pre-existing warning，详见 §5.3）
+> 状态：MVP 完成（Task 01-20）+ M5+ 地图系统 MAP-02 + MAP-06 上线（commit `ff0c641`）
+> 总测试：389 / 389 EditMode PASS · Core 依赖守卫 4 / 4 PASS · 0 新 compile warnings from MAP-02/MAP-06 paths（main 上有 3 个 pre-existing warning，详见 §5.3）
 
 ## 1. 已完成功能
 
-### 1.1 Core（41 .cs · 含 MAP-02 新增 7 个）
+### 1.1 Core（50 .cs · 含 MAP-02 + MAP-06 新增 16 个）
 
 | 模块 | 文件 | 行数级别 | 状态 |
 |---|---|---|---|
@@ -23,6 +23,7 @@
 | Undo | UndoStack | 50+ | ✅ |
 | **Map (MAP-01)** | GridCoord / GridDirection / GridMap / MapSize / DimensionLayer | 600+ | ✅ |
 | **Map (MAP-02)** | **MapDefinition / MapState / MapStateCloner / MapStateHasher / MapRegion / MapObjectInstance** | **680+** | **✅** |
+| **Map (MAP-06)** | **HeightLevel / MovementProfile / HeightTraversalService / CoverLevel / CoverDirection / CoverQueryService / ProjectileType / IHeightLookup / ICoverLookup / IBlockingLookup / LineOfSightService（Supercover 整数 LOS + 6 ProjectileType + HighGround）** | **900+** | **✅** |
 
 ### 1.2 Data（9 .cs）
 
@@ -45,7 +46,7 @@
 | Camera | BattleCameraAutoSetup（场景无 Camera 时自动俯瞰） | ✅ |
 | Stub | StubBoardPresenter / StubBattleHud（保留 fallback，Task 17+18+19 已替代） | ⚠️ fallback |
 
-### 1.4 Tests EditMode（21 文件 / 294 测试 · 含 MAP-01 + MAP-02 新增 122 测试）
+### 1.4 Tests EditMode（29 文件 / 389 测试 · 含 MAP-01 + MAP-02 + MAP-06 新增 217 测试）
 
 | 测试集 | 测试数 | 内容 |
 |---|---|---|
@@ -67,13 +68,18 @@
 | LevelLoopTests | 12 | GuardsCompleted / Retreat / 胜负 / 确定性 |
 | **Map/Coordinates（MAP-01）** | **61** | **GridCoord / MapSize / GridMap / DualLayer / MaxSize / Neighbour** |
 | **Map/State（MAP-02）** | **45** | **MapStateClone (14) + MapStateHash (23, 含 Hash_IsStable_Over100Runs) + MapStateMutationIsolation (8)** |
+| **Map/Height（MAP-06）** | **40** | **HeightLevel (18) + MovementProfile (8) + HeightTraversal (14)** |
+| **Map/Cover（MAP-06）** | **20** | **CoverDirection (9) + CoverQuery (11)** |
+| **Map/LineOfSight（MAP-06）** | **35** | **LineOfSight (19) + ProjectileBlock (14) + HighGroundLineOfSight (12)** |
 | UndoIntegrationTests | 8 | 21-B Undo RestoreState 集成 |
 | Phase 19 单元扩展 | 12 | LevelLoopTests 同源增量 |
 | Phase 19 综合 | 17 | 同上组合 |
 
-**总计**：**294 / 294 EditMode PASS · 0 failed · 0 skipped**（main HEAD `25e035b`）。
+**总计**：**389 / 389 EditMode PASS · 0 failed · 0 skipped**（main HEAD `ff0c641`）。
 
-qa Gate 独立报告：[`docs/qa-reports/map-02-gate.md`](qa-reports/map-02-gate.md)。
+qa Gate 独立报告：
+- MAP-02：[`docs/qa-reports/map-02-gate.md`](qa-reports/map-02-gate.md)
+- MAP-06：[`docs/qa-reports/map-06-gate.md`](qa-reports/map-06-gate.md)
 
 ## 2. 提交链（main）
 
@@ -105,10 +111,10 @@ ce2391a9 merge: agent/18-hud-and-preview (Task 18 HUD 与预览) into main
   - `BFSPathfinder` 邻居顺序修复 → AGENTS §11 兼容（commit `5cc4644`）
   - `BattleRunner.RestoreState` + Undo 链路打通（commit `617e332`）
   - MAP-01 棋盘坐标基础 → `GridCoord` / `DimensionLayer` / `GridMap<T>` / `GridDirection` / `MapSize`（commit `1738269`，61 EditMode 测试）
-  - **MAP-02 MapState / DeepClone / Hash** → main HEAD `25e035b`（45 新 EditMode 测试；Commit 链 11 个：MapDefinition + MapState + MapStateCloner + MapStateHasher + 3 套 State tests + Region/ObjectInstance POCO + BattleState/Cloner 升级 + Gate 验证日志；qa Gate 在 `agent/qa-map-02-gate @ 5365adf` 独立跑 batchmode 294/294 PASS，详见 [`docs/qa-reports/map-02-gate.md`](qa-reports/map-02-gate.md)）
-- ADR-0003 MapState 哈希契约 → main `0acf39d` Status:**Accepted**（FNV-1a 64 位 + type-tag + length-prefix + 稳定排序集合）
+  - MAP-02 MapState / DeepClone / Hash → main `25e035b`（45 新 EditMode 测试；ADR-0003 Status:**Accepted** `0acf39d`）
+  - **MAP-06 LOS**（Height + Cover + LineOfSight + ProjectileType + HighGround）→ main HEAD `ff0c641`（95 新 EditMode 测试；Commit 链 6 个：子目录 + 4 数据类型/服务 + Supercover LOS + 测试组 + Full Cover/CrossPhase 强化；qa Gate 在 `agent/qa-map-06-gate @ 06f972f` 独立跑 batchmode 389/389 PASS，8/8 Gate 详见 [`docs/qa-reports/map-06-gate.md`](qa-reports/map-06-gate.md)）
 - 下一步候选：
-  - MAP-06 LOS（前置战斗伤害）
+  - MAP-04 TileDef（map06 提供的 3 个 `IXxxLookup` 接口即为装配入口）
   - MAP-08 相位翻转 + 坠落 + 实体挤压（核心玩法，最高优先级）
 
 详见审计与决策记录：

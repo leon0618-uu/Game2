@@ -3,7 +3,7 @@
 > Lead：`xingyuan-lead`（2026-07-14 09:32 GMT+8 起生效）
 > 输入：[`.incoming/doc1-core-systems.txt`](../.incoming/doc1-core-systems.txt) + [`.incoming/doc2-map-dev-plan.txt`](../.incoming/doc2-map-dev-plan.txt)（已由 xingyuan-architect 吸收为 [Docs/MAP_SYSTEM_AUDIT.md](MAP_SYSTEM_AUDIT.md)）
 > 路线：**Route A 增量升级**（保留 4 程序集 + `GridPos` / `BoardState` 命名 + `Assets/Starfall/Core/Map/` 新增子目录）
-> 状态（2026-07-14 11:48 GMT+8）：**MAP-01 + MAP-02 已上线 main HEAD `25e035b`**；ADR-0003 Status:**Accepted**；qa Gate PASS；本计划文档已与该状态同步。
+> 状态（2026-07-14 13:27 GMT+8）：**MAP-01 + MAP-02 + MAP-06 已上线 main HEAD `ff0c641`**；ADR-0003 Status:**Accepted**；2 个 qa Gate PASS；本计划文档已与该状态同步。
 
 ## 1. 已批准决策
 
@@ -24,7 +24,7 @@
 | map-00-unblock-undo-restore-state | BattleRunner.RestoreState + Undo 集成测试 | ✅ | `617e332` |
 | map-01-grid-foundation | GridCoord / DimensionLayer / GridMap<T> / GridDirection / MapSize（61 测试） | ✅ | `1738269` |
 | **map-02-map-state** | MapDefinition + MapState + MapStateCloner + MapStateHasher + MapRegion/MapObjectInstance POCOs + BattleState/Cloner 集成 + ADR-0003 + 3 套 45 测试 | ✅ | `25e035b` |
-| map-06-line-of-sight | LineOfSightService / CoverQueryService / HeightTraversalService | ⏳ P0 候补 | — |
+| **map-06-line-of-sight** | HeightLevel / MovementProfile / HeightTraversalService + CoverLevel / CoverDirection / CoverQueryService + ProjectileType / IHeightLookup / ICoverLookup / IBlockingLookup / LineOfSightService（Supercover + 6 Projectile + HighGround）+ 95 测试 | ✅ | `ff0c641` |
 | map-08-phase-flip | FlipTilePhaseCommand / FallResolutionService / PhaseCompressionResolutionService | ⏳ P0 候补（核心玩法） | — |
 
 ## 3. 下一轮派活范围（待用户回执后立刻 spawn）
@@ -136,17 +136,16 @@
 
 ## 4. 待用户裁决的事项
 
-> MAP-02 已完成（main HEAD `25e035b`），下面 Q1-Q5 等用户裁决后再启动 MAP-06 / MAP-08 下一轮。
+> MAP-02 + MAP-06 已完成（main HEAD `ff0c641`），下面 Q1-Q5 等用户裁决后再启动 MAP-08 下一轮。
 
 | # | 决策 | Lead 默认假设 | 备注 |
 |---|---|---|---|
-| Q1 | 是否在 MAP-02 完成后立即启动 **MAP-06 LOS**（LineOfSightService + 掩体 + 高度，~2-3 天） | 否，每次一个任务包；MAP-02 完成后再问 | 与路线 A 一致 |
+| Q1 | 是否在 MAP-06 完成后立即启动 **MAP-08 相位翻转 + 坠落 + 实体挤压**（核心玩法，最高优先级，~2-3 天） | 否，每次一个任务包；MAP-06 完成后再问 | 与路线 A 一致 |
 | Q2 | `MAP_DEV_PHASE_TEST_001`（12×14 双层）何时启动 | P2（route A 路线），等 MAP-17 阶段 | — |
-| Q3 | `agent/map-00-fix-battle-state-cloner`（14 BattleStateClonerTests）是否立单任务 | **用户 2026-07-14 12:38 GMT+8 明确不立**；保留为 unmerged 分支 | qa advisory #4 描述 |
-| Q4 | `MAP-08 相位翻转 + 坠落 + 实体挤压`（核心玩法，最高优先级）何时启动 | 待 Q1-Q3 决议后由 Lead 提议 | audit §6.1 P0 |
-| Q5 | 推送到 origin/main 是否分批（先 MAP-02 部分、再下个 MAP 部分） | 一次性 16 commit push（含历史 unmerged 部分） | AGENTS §9 push 需批准 |
-| Q3 | `battle_default.json` 是否同时新增 12×14 双层测试地图 | 否，先加不破坏现有 8×10 | — |
-| Q4 | `MVPPlayModeHelper.cs` 何时归入新 `Starfall.Editor` 程序集 | 与 MAP-16（路线编辑器）一起 | — |
+| Q3 | `agent/map-00-fix-battle-state-cloner`（14 BattleStateClonerTests）是否立单任务 | **用户 2026-07-14 12:38 GMT+8 明确不立**；保留为 unmerged 分支 | qa MAP-02 advisory #4 描述 |
+| Q4 | **MAP-04 TileDef**（map06 提供的 3 个 `IXxxLookup` 接口即为装配入口）何时启动 | 待 Q1 决议后由 Lead 提议 | qa MAP-06 推荐下个 |
+| Q5 | 推送到 origin/main 是否分批 | 一次性 push（含 2 个新合并提交） | AGENTS §9 push 需批准 |
+| Q6 | `MVPPlayModeHelper.cs` 何时归入新 `Starfall.Editor` 程序集 | 与 MAP-16（路线编辑器）一起 | — |
 | Q5 | ADR-0003 由 architect 还是 gameplay 写 | architect（spec/标准文档） | — |
 
 ## 5. 文档交叉引用
