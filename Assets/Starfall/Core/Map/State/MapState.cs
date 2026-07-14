@@ -1,0 +1,153 @@
+using System;
+using System.Collections.Generic;
+using Starfall.Core.Anchor;
+using Starfall.Core.Map.Coordinates;
+
+namespace Starfall.Core.Map.State
+{
+    /// <summary>
+    /// doc2 MAP-02 运行时唯一真相源。
+    ///
+    /// <para/>
+    /// 持有：
+    /// <list type="bullet">
+    /// <item>不可变 <see cref="MapDefinition"/>（创建后不修改 Definition 字段）。</item>
+    /// <item>运行时整数状态：<see cref="Version"/>、<see cref="ActiveLayer"/>、<see cref="GlobalCollapseValue"/>。</item>
+    /// <item>4 个集合（Tiles / Anchors / Regions / MapObjects），对外暴露 <see cref="IReadOnlyList{T}"/>；
+    ///       内部使用 <see cref="List{T}"/>，由 <see cref="MapStateCloner"/> 完整深拷贝。</item>
+    /// </list>
+    ///
+    /// <para/>
+    /// 本轮（MAP-02）只建容器，不接任何 <c>IMapCommand</c>（MAP-03）。后续
+    /// <c>MapCommandExecutor</c> 应在每次成功执行命令后：
+    /// <list type="number">
+    /// <item>修改集合 + 自增 <see cref="Version"/>；</item>
+    /// <item>不要缓存 <see cref="PostStateHash"/>，由 <see cref="MapStateHasher"/> 按需计算；
+    ///       任何缓存层必须随 Version 自增失效。</item>
+    /// </list>
+    ///
+    /// <para/>
+    /// 集合元素的稳定顺序在 <see cref="MapStateHasher"/> 与 <see cref="MapStateCloner"/>
+    /// 各自负责，<see cref="MapState"/> 自身不保证集合顺序（List 保留插入顺序）。
+    /// </summary>
+    public sealed class MapState
+    {
+        public MapDefinition Definition { get; }
+
+        /// <summary>每次成功的 MapCommand 自增 1（MAP-03 接入）。MAP-02 阶段不修改。</summary>
+        public int Version { get; set; }
+
+        /// <summary>当前激活维度（Reality / Astral）。</summary>
+        public DimensionLayer ActiveLayer { get; set; }
+
+        /// <summary>全局坍塌值（doc1 §13.1，0..100）。</summary>
+        public int GlobalCollapseValue { get; set; }
+
+        // 集合字段使用 internal：允许同程序集内的 MapStateCloner 写入新元素（深拷贝时）；
+        // 对外（测试 / 业务代码）只能通过 IReadOnlyList + Add*/Remove* 方法操作。
+        // 这与 AGENTS.md §10.1 硬约束（Core 无 UnityEngine）兼容：internal 仅在程序集内可见。
+        internal readonly List<GridCoord> TilesInternal;
+        internal readonly List<AnchorZone> AnchorsInternal;
+        internal readonly List<MapRegion> RegionsInternal;
+        internal readonly List<MapObjectInstance> MapObjectsInternal;
+
+        public IReadOnlyList<GridCoord> Tiles => TilesInternal;
+        public IReadOnlyList<AnchorZone> Anchors => AnchorsInternal;
+        public IReadOnlyList<MapRegion> Regions => RegionsInternal;
+        public IReadOnlyList<MapObjectInstance> MapObjects => MapObjectsInternal;
+
+        public MapState(MapDefinition definition)
+        {
+            Definition = definition;
+            Version = 0;
+            ActiveLayer = definition.InitialActiveLayer;
+            GlobalCollapseValue = definition.InitialGlobalCollapseValue;
+            TilesInternal = new List<GridCoord>();
+            AnchorsInternal = new List<AnchorZone>();
+            RegionsInternal = new List<MapRegion>();
+            MapObjectsInternal = new List<MapObjectInstance>();
+        }
+
+        // ──────────── 集合修改入口（MAP-02 阶段仅供 Cloner / Test 使用）────────────
+
+        /// <summary>添加一个 Tile（MAP-02 不做越界 / 重复检查，由 MAP-04 TileOccupancyService 接管）。</summary>
+        public void AddTile(GridCoord tile)
+        {
+            if (!tile.IsInBounds(Definition.Size))
+                throw new ArgumentOutOfRangeException(nameof(tile), tile,
+                    $"Tile {tile} is out of bounds for map {Definition.Size}.");
+            TilesInternal.Add(tile);
+        }
+
+        /// <summary>移除一个 Tile（不存在则返回 false）。</summary>
+        public bool RemoveTile(GridCoord tile) => TilesInternal.Remove(tile);
+
+        public void AddAnchor(AnchorZone zone)
+        {
+            if (zone == null) throw new ArgumentNullException(nameof(zone));
+            AnchorsInternal.Add(zone);
+        }
+
+        public bool RemoveAnchor(int zoneId)
+        {
+            for (int i = 0; i < AnchorsInternal.Count; i++)
+            {
+                if (AnchorsInternal[i].ZoneId == zoneId)
+                {
+                    AnchorsInternal.RemoveAt(i);
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        public void AddRegion(MapRegion region)
+        {
+            if (region == null) throw new ArgumentNullException(nameof(region));
+            RegionsInternal.Add(region);
+        }
+
+        public bool RemoveRegion(int regionId)
+        {
+            for (int i = 0; i < RegionsInternal.Count; i++)
+            {
+                if (RegionsInternal[i].RegionId == regionId)
+                {
+                    RegionsInternal.RemoveAt(i);
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        public void AddMapObject(MapObjectInstance obj)
+        {
+            if (obj == null) throw new ArgumentNullException(nameof(obj));
+            MapObjectsInternal.Add(obj);
+        }
+
+        public bool RemoveMapObject(int objectId)
+        {
+            for (int i = 0; i < MapObjectsInternal.Count; i++)
+            {
+                if (MapObjectsInternal[i].ObjectId == objectId)
+                {
+                    MapObjectsInternal.RemoveAt(i);
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // ──────────── 确定性哈希（按需计算）────────────
+
+        /// <summary>
+        /// doc2 MAP-02 确定性哈希（FNV-1a 64 位）。由 <see cref="MapStateHasher"/> 实现，
+        /// 这里只是直传，避免循环依赖。
+        /// </summary>
+        public ulong PostStateHash => MapStateHasher.CalculateDeterministicHash(this);
+
+        public override string ToString()
+            => $"MapState(Def={Definition}, Ver={Version}, Layer={ActiveLayer}, CV={GlobalCollapseValue}, Tiles={TilesInternal.Count}, Anchors={AnchorsInternal.Count}, Regions={RegionsInternal.Count}, Objects={MapObjectsInternal.Count})";
+    }
+}
