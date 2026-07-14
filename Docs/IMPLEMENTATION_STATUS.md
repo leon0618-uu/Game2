@@ -91,6 +91,23 @@ ce2391a9 merge: agent/18-hud-and-preview (Task 18 HUD 与预览) into main
 
 详见 [Docs/04_Roadmap_and_Milestones.md](../Docs/04_Roadmap_and_Milestones.md)。
 
+### 4.1 M5+ 地图系统路线（Route A 增量升级，2026-07-14 Lead 采纳）
+
+- 路线 A 已锁定：保留 4 程序集 + `GridPos`/`BoardState` 命名，`Assets/Starfall/Core/Map/` 新增命名空间子目录，逐 MAP 升级。
+- 已完成 P0 前置：
+  - `BFSPathfinder` 邻居顺序修复 → AGENTS §11 兼容（commit `5cc4644`）
+  - `BattleRunner.RestoreState` + Undo 链路打通（commit `617e332`）
+  - MAP-01 棋盘坐标基础 → `GridCoord` / `DimensionLayer` / `GridMap<T>` / `GridDirection` / `MapSize`（commit `1738269`，61 EditMode 测试）
+- 下一步候选：
+  - **MAP-02** MapState / 深拷贝 / 确定性哈希（route A 适配器层，单独一轮约 3–5 小时）
+  - MAP-06 LOS（前置战斗伤害）
+  - MAP-08 相位翻转 + 坠落 + 实体挤压（核心玩法）
+
+详见审计与决策记录：
+
+- [Docs/MAP_SYSTEM_AUDIT.md](../Docs/MAP_SYSTEM_AUDIT.md)（xingyuan-architect 撰写，18 MAP vs MVP 现状对照）
+- [Docs/MAP_SYSTEM_FORWARD_PLAN.md](../Docs/MAP_SYSTEM_FORWARD_PLAN.md)（Lead 已采纳的 P0 决策 + 待裁决项）
+
 MVP 后续可选方向（**未经用户批准不得实施**）：
 
 - 扩展关卡（不同地图、不同 Anchor / Decree 组合）
