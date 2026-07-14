@@ -3,6 +3,7 @@
 > Lead：`xingyuan-lead`（2026-07-14 09:32 GMT+8 起生效）
 > 输入：[`.incoming/doc1-core-systems.txt`](../.incoming/doc1-core-systems.txt) + [`.incoming/doc2-map-dev-plan.txt`](../.incoming/doc2-map-dev-plan.txt)（已由 xingyuan-architect 吸收为 [Docs/MAP_SYSTEM_AUDIT.md](MAP_SYSTEM_AUDIT.md)）
 > 路线：**Route A 增量升级**（保留 4 程序集 + `GridPos` / `BoardState` 命名 + `Assets/Starfall/Core/Map/` 新增子目录）
+> 状态（2026-07-14 11:48 GMT+8）：**MAP-01 + MAP-02 已上线 main HEAD `25e035b`**；ADR-0003 Status:**Accepted**；qa Gate PASS；本计划文档已与该状态同步。
 
 ## 1. 已批准决策
 
@@ -22,7 +23,7 @@
 | map-00-bugfix-bfs-neighbor-order | BFSPathfinder N→E→S→W | ✅ | `5cc4644` |
 | map-00-unblock-undo-restore-state | BattleRunner.RestoreState + Undo 集成测试 | ✅ | `617e332` |
 | map-01-grid-foundation | GridCoord / DimensionLayer / GridMap<T> / GridDirection / MapSize（61 测试） | ✅ | `1738269` |
-| **map-02-map-state**（下一轮 = 本 Lead 推荐 A 包） | MapDefinition + MapState + MapStateCloner + MapStateHasher + ADR-0003 | ⏳ **待派活** | — |
+| **map-02-map-state** | MapDefinition + MapState + MapStateCloner + MapStateHasher + MapRegion/MapObjectInstance POCOs + BattleState/Cloner 集成 + ADR-0003 + 3 套 45 测试 | ✅ | `25e035b` |
 | map-06-line-of-sight | LineOfSightService / CoverQueryService / HeightTraversalService | ⏳ P0 候补 | — |
 | map-08-phase-flip | FlipTilePhaseCommand / FallResolutionService / PhaseCompressionResolutionService | ⏳ P0 候补（核心玩法） | — |
 
@@ -75,17 +76,31 @@
 - 不接 `Starfall.Editor` 新程序集（MAP-16）
 - 不写性能基准（MAP-18）
 
-### 3.4 验收标准
+### 3.4 验收标准（**MAP-02 已达成：actual vs target**）
 
-- EditMode `total ≥ 272` / `failed = 0`（247 baseline + 25 新测试最低线）
-- `CoreDependencyGuardTests` 4 项继续 PASS（Core 不引用 UnityEngine / UnityEditor）
-- `BattleStateCloner.Clone` 升级后旧 14 个 `BattleStateClonerTests` 继续 PASS
-- 重复运行 `MapStateHasher.CalculateDeterministicHash(sameState)` ×100 结果完全一致
-- 不修改任何 `Assets/Starfall/Unity/*` 文件（route A 表现层下一轮）
-- 不修改 `Packages/manifest.json`（无新依赖）
-- 不修改 `ProjectSettings/*`（不改 Unity 版本）
-- 分支基于最新 main（HEAD ≥ `1738269`）
-- 提供 build log + test results xml 路径
+| 项 | Target | Actual (PASS) | 证据 |
+|---|---|---|---|
+| EditMode 测试总数 | ≥ 272 | **294** | `Logs/qa-editmode-results.xml` + `Logs/editmode-map-02-results.xml` |
+| Failed | 0 | **0** | 同上 |
+| `CoreDependencyGuardTests` | 4/4 PASS | **4/4 PASS** | qa Gate 独立核对 |
+| `BattleStateCloner`-using tests 继续 PASS | 全部 | **3 个在 `FoundationStateTests` + 1 个在 `LevelLoopTests` PASS** | 注意：qa Gate advisory #4 |
+| `MapStateHasher.CalculateDeterministicHash ×100` 一致 | PASS | **PASS**（`Hash_IsStable_Over100Runs`，0.000385 s） | qa Gate |
+| `Assets/Starfall/Unity/*` 修改 | 0 | **0** | qa Gate `git diff main..HEAD --stat` 检查 |
+| `Packages/manifest.json` / `ProjectSettings/*` 修改 | 0 | **0** | qa Gate |
+| 分支基于最新 main（HEAD ≥ `1738269`） | YES | **YES**（gameplay 创 branch HEAD `1738269`，qa 合后 base same） | git log |
+| 编译 warnings | 0 new | **0 new**（main pre-existing 3 个：CS8632 × 1, CS0618 × 2） | qa Gate `Logs/qa-compile.log` |
+| Build log + test results xml 路径 | 提供 | game：`Logs/compile-map-02.log` + `Logs/editmode-map-02-results.xml`；qa：`Logs/qa-compile.log` + `Logs/qa-editmode-results.xml` | 均 on `agent/qa-map-02-gate @ 5365adf` |
+| `using UnityEngine` 在 `Assets/Starfall/Core/Map/State/` | 0 | **0** | qa Gate grep |
+| `BattleState.PostStateHash` 公共签名 | 不变 | **不变** | gameplay + qa 都 grep |
+| `BattleStateCloner.Clone` 调 `MapStateCloner.DeepClone` | YES | **YES**（`Assets/Starfall/Core/Model/Cloner.cs` ~L32） | qa Gate |
+| `MapStateHasher` 字段编码 | type-tag + length-prefix | **YES** + UTF-8 + FNV-1a 64 + stable sort | [ADR-0003](../ADR/ADR-0003-map-state-hash.md) |
+
+#### 已知遗留（qa advisory）
+
+- **#4 "14 BattleStateClonerTests" in §3.4** — 本文档最初将"§3.4 'all existing 14 BattleStateCloner-related tests'" 误写为 14，**实际为：**
+  - **`main` 上的 `BattleStateCloner.Clone`-using 测试**：3 个 in `FoundationStateTests`（`Cloner_DeepCopy_IndependentOfSource`、`Cloner_DoesNotShareUnitReferences`、`Comparer_Equals_TrueForClones`）+ 1 个 in `LevelLoopTests` → 共 **4 个，全部 PASS**
+  - **未合到 main 的额外 14 个 `BattleStateClonerTests`**：位于 unmerged 分支 `agent/map-00-fix-battle-state-cloner`（不在 MAP-02 范围；用户 2026-07-14 12:38 GMT+8 明确不立单任务）
+  - 修正：§3.4 上文写"旧 14 个 `BattleStateClonerTests` 继续 PASS"为误导。实际仅上表 4 个 main-on-tests 通过。如果用户后续决定合并 `agent/map-00-fix-battle-state-cloner`，那 14 个会补充回归覆盖。
 
 ### 3.5 委派矩阵
 
@@ -121,12 +136,15 @@
 
 ## 4. 待用户裁决的事项
 
-> 这些不影响 MAP-02 启动，但 Lead 需要知道用户的最终答案。
+> MAP-02 已完成（main HEAD `25e035b`），下面 Q1-Q5 等用户裁决后再启动 MAP-06 / MAP-08 下一轮。
 
 | # | 决策 | Lead 默认假设 | 备注 |
 |---|---|---|---|
-| Q1 | 是否在 MAP-02 完成后立即启动 MAP-06（视线） | 否，每次一个任务包；MAP-02 完成后再问 | 与路线 A 一致 |
+| Q1 | 是否在 MAP-02 完成后立即启动 **MAP-06 LOS**（LineOfSightService + 掩体 + 高度，~2-3 天） | 否，每次一个任务包；MAP-02 完成后再问 | 与路线 A 一致 |
 | Q2 | `MAP_DEV_PHASE_TEST_001`（12×14 双层）何时启动 | P2（route A 路线），等 MAP-17 阶段 | — |
+| Q3 | `agent/map-00-fix-battle-state-cloner`（14 BattleStateClonerTests）是否立单任务 | **用户 2026-07-14 12:38 GMT+8 明确不立**；保留为 unmerged 分支 | qa advisory #4 描述 |
+| Q4 | `MAP-08 相位翻转 + 坠落 + 实体挤压`（核心玩法，最高优先级）何时启动 | 待 Q1-Q3 决议后由 Lead 提议 | audit §6.1 P0 |
+| Q5 | 推送到 origin/main 是否分批（先 MAP-02 部分、再下个 MAP 部分） | 一次性 16 commit push（含历史 unmerged 部分） | AGENTS §9 push 需批准 |
 | Q3 | `battle_default.json` 是否同时新增 12×14 双层测试地图 | 否，先加不破坏现有 8×10 | — |
 | Q4 | `MVPPlayModeHelper.cs` 何时归入新 `Starfall.Editor` 程序集 | 与 MAP-16（路线编辑器）一起 | — |
 | Q5 | ADR-0003 由 architect 还是 gameplay 写 | architect（spec/标准文档） | — |

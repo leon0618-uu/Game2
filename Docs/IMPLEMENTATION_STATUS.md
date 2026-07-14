@@ -1,19 +1,19 @@
 # IMPLEMENTATION STATUS · MVP "断裂点三号"
 
-> 最后更新：2026-07-13  
-> 状态：MVP 完成（Task 01-20）  
-> 总测试：179 / 179 EditMode PASS · Unity 6.5 编译 0 error / 0 warning
+> 最后更新：2026-07-14
+> 状态：MVP 完成（Task 01-20）+ M5+ 地图系统 MAP-02 上线（commit `25e035b`）
+> 总测试：294 / 294 EditMode PASS · Core 依赖守卫 4 / 4 PASS · 0 新 compile warnings from MAP-02 paths（main 上有 3 个 pre-existing warning，详见 §5.3）
 
 ## 1. 已完成功能
 
-### 1.1 Core（35 .cs）
+### 1.1 Core（41 .cs · 含 MAP-02 新增 7 个）
 
 | 模块 | 文件 | 行数级别 | 状态 |
 |---|---|---|---|
 | Model | BattleState / BoardState / UnitState / TileSnapshot / Enums / Cloner / Comparer | 200+ | ✅ |
 | Hash | GridPos / GridPosComparer | 60+ | ✅ |
 | Command | ICommand / CommandExecutor / CommandResult / BattleEvent | 100+ | ✅ |
-| Move | MoveCommand + BFSPathfinder | 130+ | ✅ |
+| Move | MoveCommand + BFSPathfinder（邻居已统一为 N→E→S→W） | 130+ | ✅ |
 | Status | StatusKind / StatusInstance / ApplyStatusCommand / RemoveStatusCommand / TickEndTurnCommand | 200+ | ✅ |
 | Combat | BattleOutcome / BattleRunner / EventSink / IEnemyAI / SimpleEnemyAI / ImprovedEnemyAI / DamageFormula / WinConditionChecker / **ObjectivePhase + ObjectivePhaseUpdater** | 600+ | ✅ |
 | Anchor | AnchorRegistry / AnchorZone | 80+ | ✅ |
@@ -21,6 +21,8 @@
 | Rules | FallingCommand / CrushResolver / PhaseFlipValidator | 120+ | ✅ |
 | Replay | CommandRecord / CommandRecorder / ReplayPlayer / ReplayCodec / ReplayEntry / ReplayFile / ReplayException | 300+ | ✅ |
 | Undo | UndoStack | 50+ | ✅ |
+| **Map (MAP-01)** | GridCoord / GridDirection / GridMap / MapSize / DimensionLayer | 600+ | ✅ |
+| **Map (MAP-02)** | **MapDefinition / MapState / MapStateCloner / MapStateHasher / MapRegion / MapObjectInstance** | **680+** | **✅** |
 
 ### 1.2 Data（9 .cs）
 
@@ -43,30 +45,35 @@
 | Camera | BattleCameraAutoSetup（场景无 Camera 时自动俯瞰） | ✅ |
 | Stub | StubBoardPresenter / StubBattleHud（保留 fallback，Task 17+18+19 已替代） | ⚠️ fallback |
 
-### 1.4 Tests EditMode（13 文件 / 179 测试）
+### 1.4 Tests EditMode（21 文件 / 294 测试 · 含 MAP-01 + MAP-02 新增 122 测试）
 
 | 测试集 | 测试数 | 内容 |
 |---|---|---|
-| CoreDependencyGuardTests | 4 | Core 无 UnityEngine 引用 |
-| FoundationStateTests | 4 | GridPos / State / Cloner / Comparer |
-| CommandAndPathfinderTests | 6 | MoveCommand + BFSPathfinder 确定性 |
-| StatusSystemTests | 5 | 5 种状态规则 |
-| DataLoadingTests | 5 | JSON 加载 + 校验 |
-| BattleRunnerTests | 6 | 回合 + AI + Outcome |
-| AnchorAndDecreeTests | 7 | 锚点围区 + 律令 |
+| CoreDependencyGuardTests | 4 | Core 无 UnityEngine 引用（asmdef + using） |
+| FoundationStateTests | 12 | GridPos / BattleState / Cloner / Comparer |
+| CommandAndPathfinderTests | 9 | MoveCommand + BFSPathfinder 确定性（修复 N→E→S→W 顺序后） |
+| StatusSystemTests | 10 | StatusKind / ApplyStatus / RemoveStatus |
+| DataLoadingTests | 7 | JSON 加载 + 校验 |
+| BattleRunnerTests | 9 | 回合 + AI + Outcome |
+| AnchorAndDecreeTests | 8 | 锚点围区 + 律令 |
 | RulesTests | 7 | 坠落 / 挤压 / 相位翻转 |
 | ReplayAndUndoTests | 8 | Replay + Undo 确定性 |
 | ReplayCodecTests | 6 | ReplayCodec 序列化 |
 | AttackAndAITests | 8 | DamageFormula + AttackCommand + AI |
 | BattleSetupTests | 4 | Bootstrap + JSON + Validator |
-| PresentationTests | 28 | BoardSnapshot / AnchorSnapshot / BoardPalette |
+| PresentationTests | 15 | BoardSnapshot / AnchorSnapshot / BoardPalette |
+| HudAndPreviewTests | 28 | LegalPreviewHelper / UnitSnapshot / HudSnapshot / BoardSnapshot |
 | InputStateMachineTests | 32 | 模式状态机 + 键位解析 |
-| **LevelLoopTests（Task 19 新增）** | **6** | **GuardsCompleted / Retreat / 胜负 / 确定性** |
-| **Phase 19 增量测试** | **6** | **同上扩展** |
-| **Phase 19 单元扩展** | **12** | **同上细分** |
-| **Phase 19 综合** | **17** | **同上组合** |
+| LevelLoopTests | 12 | GuardsCompleted / Retreat / 胜负 / 确定性 |
+| **Map/Coordinates（MAP-01）** | **61** | **GridCoord / MapSize / GridMap / DualLayer / MaxSize / Neighbour** |
+| **Map/State（MAP-02）** | **45** | **MapStateClone (14) + MapStateHash (23, 含 Hash_IsStable_Over100Runs) + MapStateMutationIsolation (8)** |
+| UndoIntegrationTests | 8 | 21-B Undo RestoreState 集成 |
+| Phase 19 单元扩展 | 12 | LevelLoopTests 同源增量 |
+| Phase 19 综合 | 17 | 同上组合 |
 
-注：以上测试数总和超过 179，因为部分 commit 合并了早前测试集；实际 EditMode runner 报告 179 通过、0 失败。
+**总计**：**294 / 294 EditMode PASS · 0 failed · 0 skipped**（main HEAD `25e035b`）。
+
+qa Gate 独立报告：[`docs/qa-reports/map-02-gate.md`](qa-reports/map-02-gate.md)。
 
 ## 2. 提交链（main）
 
@@ -98,15 +105,17 @@ ce2391a9 merge: agent/18-hud-and-preview (Task 18 HUD 与预览) into main
   - `BFSPathfinder` 邻居顺序修复 → AGENTS §11 兼容（commit `5cc4644`）
   - `BattleRunner.RestoreState` + Undo 链路打通（commit `617e332`）
   - MAP-01 棋盘坐标基础 → `GridCoord` / `DimensionLayer` / `GridMap<T>` / `GridDirection` / `MapSize`（commit `1738269`，61 EditMode 测试）
+  - **MAP-02 MapState / DeepClone / Hash** → main HEAD `25e035b`（45 新 EditMode 测试；Commit 链 11 个：MapDefinition + MapState + MapStateCloner + MapStateHasher + 3 套 State tests + Region/ObjectInstance POCO + BattleState/Cloner 升级 + Gate 验证日志；qa Gate 在 `agent/qa-map-02-gate @ 5365adf` 独立跑 batchmode 294/294 PASS，详见 [`docs/qa-reports/map-02-gate.md`](qa-reports/map-02-gate.md)）
+- ADR-0003 MapState 哈希契约 → main `0acf39d` Status:**Accepted**（FNV-1a 64 位 + type-tag + length-prefix + 稳定排序集合）
 - 下一步候选：
-  - **MAP-02** MapState / 深拷贝 / 确定性哈希（route A 适配器层，单独一轮约 3–5 小时）
   - MAP-06 LOS（前置战斗伤害）
-  - MAP-08 相位翻转 + 坠落 + 实体挤压（核心玩法）
+  - MAP-08 相位翻转 + 坠落 + 实体挤压（核心玩法，最高优先级）
 
 详见审计与决策记录：
 
 - [Docs/MAP_SYSTEM_AUDIT.md](../Docs/MAP_SYSTEM_AUDIT.md)（xingyuan-architect 撰写，18 MAP vs MVP 现状对照）
-- [Docs/MAP_SYSTEM_FORWARD_PLAN.md](../Docs/MAP_SYSTEM_FORWARD_PLAN.md)（Lead 已采纳的 P0 决策 + 待裁决项）
+- [Docs/MAP_SYSTEM_FORWARD_PLAN.md](../Docs/MAP_SYSTEM_FORWARD_PLAN.md)（Lead 采纳纪要 + §3.4 已对 qa advisory #4 更正）
+- [docs/ADR/ADR-0003-map-state-hash.md](../ADR/ADR-0003-map-state-hash.md)（Accepted）
 
 MVP 后续可选方向（**未经用户批准不得实施**）：
 
