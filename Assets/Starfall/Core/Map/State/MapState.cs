@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Starfall.Core.Anchor;
+using Starfall.Core.Map.Collapse;
 using Starfall.Core.Map.Coordinates;
 using Starfall.Core.Map.Regions;
 
@@ -56,8 +57,24 @@ namespace Starfall.Core.Map.State
         /// <summary>当前激活维度（Reality / Astral）。</summary>
         public DimensionLayer ActiveLayer { get; set; }
 
-        /// <summary>全局坍塌值（doc1 §13.1，0..100）。</summary>
-        public int GlobalCollapseValue { get; set; }
+        /// <summary>
+        /// 全局坍塌值（doc1 §13.1，0..100；MAP-02 占位字段，MAP-11a 保留向后兼容）。
+        /// <para/>
+        /// **MAP-11a 升级**：本字段保留不变（int 影子），但业务代码应使用
+        /// <see cref="GlobalCV"/>（typed wrapper）—— 它包含 Stage / TickAccumulated
+        /// 派生信息。本字段与 <see cref="GlobalCV"/>.Value 保持同步，
+        /// <c>GlobalCollapseValue = GlobalCV.Value</c>。
+        /// </summary>
+        public int GlobalCollapseValue
+        {
+            get => GlobalCV.Value;
+            set => GlobalCV = new GlobalCollapseValue(value, GlobalCV.TickAccumulated);
+        }
+
+        /// <summary>
+        /// doc2 MAP-11a typed 全局坍塌值（含 Stage / Threshold / TickAccumulated）。
+        /// </summary>
+        public GlobalCollapseValue GlobalCV { get; set; }
 
         /// <summary>
         /// doc2 MAP-03 调试开关：必须显式开启才能运行 <c>SetMapDebugValueCommand</c>。
@@ -80,6 +97,8 @@ namespace Starfall.Core.Map.State
         internal readonly List<MapRegionState> RegionStatesInternal;
         // MAP-09 新增：出生点集合。
         internal readonly List<MapSpawnPoint> SpawnPointsInternal;
+        // MAP-11a 新增：每个 tile 独立的 CV（按 GridCoord 索引）。空 = 业务未使用。
+        internal readonly Dictionary<GridCoord, LocalCollapseValue> LocalCVsInternal;
 
         public IReadOnlyList<GridCoord> Tiles => TilesInternal;
         public IReadOnlyList<AnchorZone> Anchors => AnchorsInternal;
@@ -88,18 +107,32 @@ namespace Starfall.Core.Map.State
         public IReadOnlyList<MapRegionState> RegionStates => RegionStatesInternal;
         public IReadOnlyList<MapSpawnPoint> SpawnPoints => SpawnPointsInternal;
 
+        /// <summary>
+        /// doc2 MAP-11a 每个 tile 的局部 CV 字典（只读视图）。写入由
+        /// <see cref="AddLocalCV"/> / <see cref="RemoveLocalCV"/> 统一入口。
+        /// </summary>
+        public IReadOnlyDictionary<GridCoord, LocalCollapseValue> LocalCVs => LocalCVsInternal;
+
+        /// <summary>
+        /// doc2 MAP-11a 当前阶段（derived from <see cref="GlobalCV"/>.Value，
+        /// 自动计算；不存储）。
+        /// </summary>
+        public CollapseStage CurrentStage => GlobalCV.Stage;
+
         public MapState(MapDefinition definition)
         {
             Definition = definition;
             Version = 0;
             ActiveLayer = definition.InitialActiveLayer;
-            GlobalCollapseValue = definition.InitialGlobalCollapseValue;
+            GlobalCV = new GlobalCollapseValue(definition.InitialGlobalCollapseValue, 0);
+            // 同步影子字段（向后兼容：旧代码仍读 GlobalCollapseValue = GlobalCV.Value）
             TilesInternal = new List<GridCoord>();
             AnchorsInternal = new List<AnchorZone>();
             RegionsInternal = new List<MapRegion>();
             MapObjectsInternal = new List<MapObjectInstance>();
             RegionStatesInternal = new List<MapRegionState>();
             SpawnPointsInternal = new List<MapSpawnPoint>();
+            LocalCVsInternal = new Dictionary<GridCoord, LocalCollapseValue>();
         }
 
         // ──────────── 集合修改入口（MAP-02 阶段仅供 Cloner / Test 使用）────────────
@@ -254,6 +287,21 @@ namespace Starfall.Core.Map.State
             MapObjectsInternal.Add(obj);
         }
 
+        // ──────────── MAP-11a 新增入口（LocalCVs）────────────
+
+        /// <summary>添加 / 覆盖一个 tile 的 <see cref="LocalCollapseValue"/>。</summary>
+        public void AddLocalCV(LocalCollapseValue lcv) => LocalCVsInternal[lcv.Coord] = lcv;
+
+        /// <summary>按 tile 移除一个 <see cref="LocalCollapseValue"/>。</summary>
+        public bool RemoveLocalCV(GridCoord coord) => LocalCVsInternal.Remove(coord);
+
+        /// <summary>按 tile 读取 <see cref="LocalCollapseValue"/>；不存在 → null。</summary>
+        public LocalCollapseValue? TryGetLocalCV(GridCoord coord)
+        {
+            if (LocalCVsInternal.TryGetValue(coord, out var v)) return v;
+            return null;
+        }
+
         public bool RemoveMapObject(int objectId)
         {
             for (int i = 0; i < MapObjectsInternal.Count; i++)
@@ -276,6 +324,6 @@ namespace Starfall.Core.Map.State
         public ulong PostStateHash => MapStateHasher.CalculateDeterministicHash(this);
 
         public override string ToString()
-            => $"MapState(Def={Definition}, Ver={Version}, Layer={ActiveLayer}, CV={GlobalCollapseValue}, Tiles={TilesInternal.Count}, Anchors={AnchorsInternal.Count}, Regions={RegionsInternal.Count}, Objects={MapObjectsInternal.Count}, RegionStates={RegionStatesInternal.Count}, SpawnPoints={SpawnPointsInternal.Count})";
+            => $"MapState(Def={Definition}, Ver={Version}, Layer={ActiveLayer}, CV={GlobalCollapseValue}, Stage={CurrentStage}, Tiles={TilesInternal.Count}, Anchors={AnchorsInternal.Count}, Regions={RegionsInternal.Count}, Objects={MapObjectsInternal.Count}, RegionStates={RegionStatesInternal.Count}, SpawnPoints={SpawnPointsInternal.Count}, LocalCVs={LocalCVsInternal.Count})";
     }
 }
