@@ -43,6 +43,16 @@ namespace Starfall.Core.Map.State
         /// <summary>全局坍塌值（doc1 §13.1，0..100）。</summary>
         public int GlobalCollapseValue { get; set; }
 
+        /// <summary>
+        /// doc2 MAP-03 调试开关：必须显式开启才能运行 <c>SetMapDebugValueCommand</c>。
+        /// <para/>
+        /// **生产规则**：仅 <c>SetMapDevTestFlag = true</c> 后命令 <c>SetMapDebugValueCommand</c> 才会成功；
+        /// 默认 = false（拒绝所有调试写入）。该开关不进入 <see cref="PostStateHash"/>。
+        /// </summary>
+        public bool DevTestModeEnabled { get; private set; }
+
+        private Dictionary<string, string> _debugValuesInternal;
+
         // 集合字段使用 internal：允许同程序集内的 MapStateCloner 写入新元素（深拷贝时）；
         // 对外（测试 / 业务代码）只能通过 IReadOnlyList + Add*/Remove* 方法操作。
         // 这与 AGENTS.md §10.1 硬约束（Core 无 UnityEngine）兼容：internal 仅在程序集内可见。
@@ -69,6 +79,47 @@ namespace Starfall.Core.Map.State
         }
 
         // ──────────── 集合修改入口（MAP-02 阶段仅供 Cloner / Test 使用）────────────
+
+        /// <summary>
+        /// doc2 MAP-03 开启调试模式。仅 <c>SetDevTestMode(true)</c> 后
+        /// <c>SetMapDebugValueCommand</c> 才能成功执行。
+        /// </summary>
+        public void EnableDevTestMode() => DevTestModeEnabled = true;
+
+        /// <summary>禁用在测试阀称。</summary>
+        public void DisableDevTestMode() => DevTestModeEnabled = false;
+
+        /// <summary>test-only：设置调试 key → value。该字典不进入 PostStateHash。</summary>
+        public void SetDebugValue(string key, string value)
+        {
+            if (key == null) throw new ArgumentNullException(nameof(key));
+            if (value == null) throw new ArgumentNullException(nameof(value));
+            if (_debugValuesInternal == null)
+                _debugValuesInternal = new Dictionary<string, string>();
+            _debugValuesInternal[key] = value;
+        }
+
+        /// <summary>test-only：读取调试 key 返回值；不存在 → null。</summary>
+        public string TryGetDebugValue(string key)
+        {
+            if (key == null) return null;
+            if (_debugValuesInternal == null) return null;
+            return _debugValuesInternal.TryGetValue(key, out var v) ? v : null;
+        }
+
+        /// <summary>test-only：移除调试 key。</summary>
+        public bool RemoveDebugValue(string key)
+        {
+            if (key == null || _debugValuesInternal == null) return false;
+            return _debugValuesInternal.Remove(key);
+        }
+
+        /// <summary>test-only：谨慎暴露调试字典（按枚举器迭代）。该字典不进入 PostStateHash。</summary>
+        public IEnumerable<KeyValuePair<string, string>> EnumerateDebugValues()
+        {
+            if (_debugValuesInternal == null) yield break;
+            foreach (var kv in _debugValuesInternal) yield return kv;
+        }
 
         /// <summary>添加一个 Tile（MAP-02 不做越界 / 重复检查，由 MAP-04 TileOccupancyService 接管）。</summary>
         public void AddTile(GridCoord tile)

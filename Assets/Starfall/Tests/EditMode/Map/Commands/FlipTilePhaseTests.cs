@@ -212,7 +212,7 @@ namespace Starfall.Tests.EditMode.Map.Commands
         [Test]
         public void FlipTilePhase_ResultOk_StaticFactory()
         {
-            var result = MapCommandResult.Ok(new List<GridCoord> { new GridCoord(0, 0, DimensionLayer.Reality) });
+            var result = MapCommandResult.Ok(new List<GridCoord> { new GridCoord(0, 0, DimensionLayer.Reality) }, newVersion: 1);
             Assert.IsTrue(result.Success);
             Assert.IsTrue(result.ToString().Contains("OK"));
         }
