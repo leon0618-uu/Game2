@@ -86,6 +86,18 @@ namespace Starfall.Core.Map.Tile
             }
         }
 
+        /// <summary>取指定 <paramref name="map"/> 的已挂载 <see cref="TileDefinitionRegistry"/>；
+        /// 未挂载时返回 null。MAP-05 寻路 / 通行性服务使用，避免反射访问私有字典。</summary>
+        public static TileDefinitionRegistry TryGetAttachedRegistry(MapState map)
+        {
+            if (map == null) throw new ArgumentNullException(nameof(map));
+            lock (_gate)
+            {
+                _registryAttach.TryGetValue(map, out var registry);
+                return registry;
+            }
+        }
+
         /// <summary>挂载运行时 <see cref="MapTileState"/> 字典到 <paramref name="map"/>。</summary>
         public static void AttachRuntimeStates(
             MapState map,
