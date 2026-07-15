@@ -1,10 +1,11 @@
 # IMPLEMENTATION STATUS · MVP "断裂点三号"
 
-> 最后更新：2026-07-15 15:55 GMT+8
-> 状态：MVP 完成（Task 01-20）+ M5+ 地图系统 **MAP-02 + MAP-03 + MAP-04 + MAP-06 + MAP-07 + MAP-08** 上线（commit `48fbb27`，**核心玩法最高优先级**已完成）
-> 总测试：**766 / 766** EditMode PASS · Core 依赖守卫 4 / 4 PASS · 0 新 compile warnings from MAP-02/MAP-03/MAP-04/MAP-06/MAP-07/MAP-08 paths（main 上有 3 个 pre-existing warning，详见 §5.3）
+> 最后更新：2026-07-15 20:20 GMT+8
+> 状态：MVP 完成（Task 01-20）+ M5+ 地图系统 **MAP-02 + MAP-03 + MAP-04 + MAP-05 + MAP-06 + MAP-07 + MAP-08** 上线（commit `61361b9`，**核心玩法最高优先级**已完成）
+> 总测试：**859 / 859** EditMode PASS · Core 依赖守卫 4 / 4 PASS · 0 新 compile warnings from MAP-02/MAP-03/MAP-04/MAP-05/MAP-06/MAP-07/MAP-08 paths（main 上有 3 个 pre-existing warning，详见 §5.3）
 > MAP-07 QA Gate：[`Docs/qa-reports/map-07-gate.md`](qa-reports/map-07-gate.md)（Lead consolidated）
-> MAP-03 QA Gate：[`Docs/qa-reports/map-03-gate.md`](qa-reports/map-03-gate.md)（qa consolidated after gameplay commit-hygiene fix）
+> MAP-03 QA Gate：[`Docs/qa-reports/map-03-gate.md`](qa-reports/map-03-gate.md)（qa consolidated after commit-hygiene fix）
+> MAP-05 QA Gate：[`Docs/qa-reports/map-05-gate.md`](qa-reports/map-05-gate.md)（qa independent verification, 9/9 PASS）
 
 ## 1. 已完成功能
 
@@ -30,6 +31,7 @@
 | **Map (MAP-08)** | **IMapCommand (MAP-03 stub) / MapCommandResult / PhaseFlipStateService (attach 模式，per-map flipped tile 字典) / FlipTilePhaseCommand / FlipRegionPhaseCommand / FallResolutionService (曼哈顿 + CompareTo 排序)/ PhaseCompressionResolutionService (4-邻居 N→E→S→W + Manhattan=2 环回退)** | **600+** | **✅** |
 | **Map (MAP-07)** | **PhasePairLookup（双向配对 + 自环忽略） / CrossLayerValidator（PAIR_ORPHAN / PAIR_ASYMMETRIC / FLIP_DESYNC 三态） / MapTileState.ActiveDimension（per-tile 字段，PhaseLocked 校验）/ ActiveDimensionMigration（旧 dict → 新字段迁移） / LineOfSightService.ComputeCrossPhaseLOS（4-邻居 N→E→S→W，Full Cover 必挡 / Half Cover 忽略） / PhaseFlipStateService 重构（保留 legacy dict 路径）** | **800+** | **✅** |
 | **Map (MAP-03)** | **IMapCommand 完整接口（Execute/Undo/Version/CommandId/Dependencies） + MapCommandResult + MapEvent struct（8 种事件 + 稳定排序） + MapCommandExecutor（Run / UndoLast / Version / Dependencies） + 16 个 Map commands + AnchorStateService（7 状态） + MapState.Version 字段** | **2400+** | **✅** |
+| **Map (MAP-05)** | **PathfindingService（A* 算法，N→E→S→W 邻居顺序，Tie-break (F,H,Y,X,Layer)） + MapPassabilityService（7 拒绝原因：BlockedByTile/HeightDelta/Unit/Phase/Region/InsufficientMovement/Pass） + MapMovementProfile（Standard/Flyer/Heavy 工厂）+ MovementRangeService（BFS-based AP 范围）+ MapPath（含 RiskTags）+ 保留 BFSPathfinder 向后兼容** | **900+** | **✅** |
 
 ### 1.2 Data（9 .cs）
 
@@ -81,11 +83,12 @@
 | **Map/Commands（MAP-08）** | **72** | **FlipTilePhase (15) + FlipRegionPhase (11) + FallResolution (18) + PhaseCompression (12) + MultiTilePhaseFlip (8) + FallingCommandCompat (8)** |
 | **Map/Tile/PhasePair（MAP-07）** | **73** | **DualLayer (19) + PhaseFlipValidation (11) + CrossPhaseLOS (13) + PhasePairRoundTrip (10) + ActiveDimensionMigration (11) + TileDefinitionPhasePair (9)** |
 | **Map/Commands（MAP-03）** | **97** | **Map03_TaskId (17) + MapCommandEvent (14) + MapCommandExecutor (12) + MapCommandIntegration (10) + MapCommandValidation (44)** |
+| **Map/Pathfinding（MAP-05）** | **93** | **PathfindingService (12) + MapPassability (15) + MovementRange (10) + MovementProfile (8) + MapPath (6) + Map05_TaskId (5) + DualBackwardCompat (37 衍生)** |
 | UndoIntegrationTests | 8 | 21-B Undo RestoreState 集成 |
 | Phase 19 单元扩展 | 12 | LevelLoopTests 同源增量 |
 | Phase 19 综合 | 17 | 同上组合 |
 
-**总计**：**766 / 766 EditMode PASS · 0 failed · 0 skipped**（main HEAD `48fbb27`，**MAP-03 + MAP-07 + MAP-08 核心玩法已上**）。
+**总计**：**859 / 859 EditMode PASS · 0 failed · 0 skipped**（main HEAD `61361b9`，**MAP-05 + MAP-03 + MAP-07 + MAP-08 核心玩法已上**）。
 
 qa Gate 独立报告：
 - MAP-02：[`docs/qa-reports/map-02-gate.md`](qa-reports/map-02-gate.md)
@@ -94,6 +97,7 @@ qa Gate 独立报告：
 - MAP-08：[`docs/qa-reports/map-08-gate.md`](qa-reports/map-08-gate.md)（Lead spot-verify note）
 - MAP-07：[`docs/qa-reports/map-07-gate.md`](qa-reports/map-07-gate.md)（Lead consolidated）
 - MAP-03：[`docs/qa-reports/map-03-gate.md`](qa-reports/map-03-gate.md)（qa consolidated after commit-hygiene fix）
+- MAP-05：[`docs/qa-reports/map-05-gate.md`](qa-reports/map-05-gate.md)（qa independent verification）
 
 ## 2. 提交链（main）
 
@@ -131,8 +135,11 @@ ce2391a9 merge: agent/18-hud-and-preview (Task 18 HUD 与预览) into main
     - **MAP-08 Phase Flip + Fall + Crush（核心玩法最高优先级）** → main HEAD `8538f48`（72 新 EditMode 测试；Commit 链 1 个：feat 综合提交；提供 IMapCommand stub + MapCommandResult + PhaseFlipStateService（attach 模式）/ FlipTilePhaseCommand + FlipRegionPhaseCommand (atomic + PhaseLocked/PhaseFlippable 验证)/ FallResolutionService (曼哈顿 + CompareTo 排序)/ PhaseCompressionResolutionService (4-邻居 N→E→S→W + Manhattan=2 环回退)/ FallingCommand 重构调 FallResolutionService + 2 新 BattleEvent UnitEnteredVoid/UnitPhaseCompressed；详见 [`docs/qa-reports/map-08-gate.md`](qa-reports/map-08-gate.md)）
   - **MAP-07 Dual-Layer TileState + PhasePair** → main HEAD `ba42e73`（73 新 EditMode 测试；PhasePairLookup 双向 + CrossLayerValidator 三态 + MapTileState.ActiveDimension 字段 + ActiveDimensionMigration 旧 dict 迁移 + LineOfSightService.ComputeCrossPhaseLOS 重载 + PhaseFlipStateService 重构保留 legacy dict 路径；MAP-04/06/08 零回归；详见 [`docs/qa-reports/map-07-gate.md`](qa-reports/map-07-gate.md)）
   - **MAP-03 IMapCommand + Executor + 16 Map commands** → main HEAD `48fbb27`（97 新 EditMode 测试：Map03_TaskId 17 + MapCommandEvent 14 + MapCommandExecutor 12 + MapCommandIntegration 10 + MapCommandValidation 44；完整 IMapCommand 接口 + MapCommandExecutor Run/UndoLast/Version/Dependencies + MapEvent 8 种事件稳定排序 + AnchorStateService 7 状态 + 16 commands 覆盖 doc2 §21.1；MAP-08 phase flip 回归归零 72/72 PASS；详见 [`docs/qa-reports/map-03-gate.md`](qa-reports/map-03-gate.md)；Advisory A1 AnchorStateService 位置 `Core/Anchor/` 经用户 2026-07-15 15:11 GMT+8 批准）
+  - **MAP-05 Pathfinding/A*/Passability/Range** → main HEAD `61361b9`（93 新 EditMode 测试：PathfindingService 12 + MapPassability 15 + MovementRange 10 + MovementProfile 8 + MapPath 6 + Map05_TaskId 5；A* PathfindingService 含 N→E→S→W 邻居 + Tie-break (F,H,Y,X,Layer) 确定性 + MapPassabilityService 7 拒绝原因校验链 + MapMovementProfile Standard/Flyer/Heavy + MovementRangeService BFS-based AP 范围；BFSPathfinder 向后兼容保留；详见 [`docs/qa-reports/map-05-gate.md`](qa-reports/map-05-gate.md)）
 - 下一步候选（按核心性排序）：
-  - **MAP-05 A* 寻路 + MapPassability + MovementRange**（依赖 MAP-04 TileDefinition.BlocksMovement / BlocksProjectile；MAP-03 MapCommandExecutor 已就绪可包装为 MoveCommand 配套）
+  - **MAP-09 MapRegion 完整化**（已有 placeholder；依赖 MAP-07 ✅ / MAP-03 ✅ / MAP-05 ✅ 已就位；Lead 默认推荐）
+  - MAP-11 CV（Corruption Value）
+  - MAP-12 AnchorLink + ConstellationPolygon（整数射线 + 自相交拒绝）
   - MAP-05 A\* 寻路 + MapPassability + MovementRange (依赖 MAP-04 的 TileDefinition.BlocksMovement)
   - MAP-09 MapRegion 完整化（已有 placeholder，依赖 MAP-07 完成后）
   - MAP-10 MapObject + MapObjectStateMachine + 12 ObjectTypes（重型，超 3-4 天预算）
@@ -166,7 +173,7 @@ MVP 后续可选方向（**未经用户批准不得实施**）：
   -logFile -
 ```
 
-预期结果：`result="Passed"`, `total="766"`, `passed="766"`, `failed="0"`, `errors="0"`, `warnings="0"`。
+预期结果：`result="Passed"`, `total="859"`, `passed="859"`, `failed="0"`, `errors="0"`, `warnings="0"`。
 
 ### 5.2 编译验证
 

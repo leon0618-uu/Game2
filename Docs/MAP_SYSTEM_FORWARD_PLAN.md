@@ -3,7 +3,7 @@
 > Lead：`xingyuan-lead`（2026-07-14 09:32 GMT+8 起生效）
 > 输入：[`.incoming/doc1-core-systems.txt`](../.incoming/doc1-core-systems.txt) + [`.incoming/doc2-map-dev-plan.txt`](../.incoming/doc2-map-dev-plan.txt)（已由 xingyuan-architect 吸收为 [Docs/MAP_SYSTEM_AUDIT.md](MAP_SYSTEM_AUDIT.md)）
 > 路线：**Route A 增量升级**（保留 4 程序集 + `GridPos` / `BoardState` 命名 + `Assets/Starfall/Core/Map/` 新增子目录）
-> 状态（2026-07-15 15:50 GMT+8）：**MAP-01 + MAP-02 + MAP-03 + MAP-04 + MAP-06 + MAP-07 + MAP-08 已上线 main HEAD `48fbb27`**；ADR-0003 + ADR-0004 Status:**Accepted**；6 个 qa Gate 报告（MAP-07 = Lead consolidated / MAP-03 = qa consolidated）；**核心玩法（IMapCommand 框架 + 双层 + 相位翻转 + 坠落 + 挤压）已上线**；本计划文档已与该状态同步。
+> 状态（2026-07-15 20:20 GMT+8）：**MAP-01 + MAP-02 + MAP-03 + MAP-04 + MAP-05 + MAP-06 + MAP-07 + MAP-08 已上线 main HEAD `61361b9`**；ADR-0003 + ADR-0004 + ADR-0005 Status:**Accepted**；7 个 qa Gate 报告（MAP-07 = Lead consolidated / MAP-03 = qa consolidated / MAP-05 = qa independent）；**核心玩法（IMapCommand 框架 + 双层 + 相位翻转 + 坠落 + 挤压 + A* 寻路）已上线**；本计划文档已与该状态同步。
 > 用户 2026-07-14 14:18 重申规则：**派单时需理清完整依赖链，不遗漏，每项需完成**。
 > 来源依赖链（18 项 MAP，每次派单必须列全）：见本 doc §2 P0 完成表 + [Docs/IMPLEMENTATION_STATUS.md §4.1](../IMPLEMENTATION_STATUS.md)（也可参考 memory/2026-07-15.md）。
 
@@ -142,13 +142,13 @@
 
 ## 4. 待用户裁决的事项
 
-> MAP-02 + MAP-03 + MAP-04 + MAP-06 + MAP-07 + **MAP-08** 已完成（main HEAD `48fbb27`，**等 push**），**next package 待用户选**。
-> 18 项全局依赖链现状：**8 ✅**（MAP-01/02/03/04/06/07/08 + ADR-0003/0004）+ **10 ⬜**（MAP-05/09-18）。
-> 下一轮 Lead 默认推荐：**MAP-05 A* 寻路 + MapPassability + MovementRange**（依赖 MAP-04 TileDefinition.BlocksMovement / BlocksProjectile 已就位；MAP-03 MapCommandExecutor 已就绪可包装为 MoveCommand 配套）。
+> MAP-02 + MAP-03 + MAP-04 + MAP-05 + MAP-06 + MAP-07 + **MAP-08** 已完成（main HEAD `61361b9`，**等 push**），**next package 待用户选**。
+> 18 项全局依赖链现状：**9 ✅**（MAP-01/02/03/04/05/06/07/08 + ADR-0003/0004/0005）+ **9 ⬜**（MAP-09-18）。
+> 下一轮 Lead 默认推荐：**MAP-09 MapRegion 完整化**（已有 placeholder；依赖 MAP-07 ✅ / MAP-03 ✅ / MAP-05 ✅ 已就位）。
 
 | # | 决策 | Lead 默认假设 | 备注 |
 |---|---|---|---|
-| Q1 | ~~下一轮派哪个包？~~ **MAP-03 已完成（2026-07-15 15:11 GMT+8）** → 现推荐 **MAP-05** | — | MAP-03 已上线 `48fbb27` |
+| Q1 | ~~下一轮派哪个包？~~ **MAP-05 已完成（2026-07-15 20:17 GMT+8）** → 现推荐 **MAP-09** | — | MAP-05 已上线 `61361b9` |
 | Q2 | `MAP_DEV_PHASE_TEST_001`（12×14 双层）何时启动 | P2（route A 路线），等 MAP-17 阶段 | — |
 | Q3 | `agent/map-00-fix-battle-state-cloner`（14 BattleStateClonerTests）是否立单任务 | **用户 2026-07-14 12:38 GMT+8 明确不立**；保留为 unmerged 分支 | qa MAP-02 advisory #4 描述 |
 | Q4 | ⚠️ **MAP-04 已完成**（2026-07-14 23:05 GMT+8 全绿 + 上 main + push + 清理），不在需决策列表中 | — | — |
