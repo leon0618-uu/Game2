@@ -91,7 +91,7 @@ namespace Starfall.Tests.EditMode.Map.Collapse
             Assert.IsTrue(svc.ShouldWarnOnTransition(0, 80, threshold: 80),
                 "0 → 80 跨过 Critical 阈值");
             Assert.IsFalse(svc.ShouldWarnOnTransition(50, 60, threshold: 40),
-                "已 ≥ threshold，不算"跨越"");
+                "已 >= threshold, 不算'跨越'");
             Assert.IsFalse(svc.ShouldWarnOnTransition(40, 39, threshold: 40),
                 "下降不算跨越");
         }
