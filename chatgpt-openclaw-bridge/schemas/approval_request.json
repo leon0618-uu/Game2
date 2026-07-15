@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ApprovalRequest",
+  "type": "object",
+  "required": [
+    "request_id",
+    "created_at",
+    "status",
+    "action_type",
+    "item",
+    "reason",
+    "recommendation",
+    "risk",
+    "impact",
+    "rollback",
+    "command",
+    "evidence",
+    "requested_by",
+    "requires_user_approval",
+    "allowed_decisions",
+    "sensitive_data_removed"
+  ],
+  "properties": {
+    "request_id": { "type": "string", "minLength": 1 },
+    "created_at": { "type": "string", "minLength": 1 },
+    "status": { "const": "pending" },
+    "action_type": {
+      "enum": [
+        "push",
+        "create_pr",
+        "merge_pr",
+        "release",
+        "skill_apply",
+        "skill_install",
+        "plugin_install",
+        "system_config",
+        "secret_config",
+        "open_port",
+        "paid_service",
+        "other"
+      ]
+    },
+    "task_id": { "type": "string" },
+    "item": { "type": "string", "minLength": 1 },
+    "reason": { "type": "string", "minLength": 1 },
+    "recommendation": { "type": "string", "minLength": 1 },
+    "risk": { "enum": ["low", "medium", "high"] },
+    "impact": { "type": "string", "minLength": 1 },
+    "rollback": { "type": "string", "minLength": 1 },
+    "command": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "evidence": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "requested_by": { "type": "string", "minLength": 1 },
+    "requires_user_approval": { "const": true },
+    "allowed_decisions": {
+      "type": "array",
+      "prefixItems": [
+        { "const": "approve" },
+        { "const": "reject" },
+        { "const": "pause_and_inspect" }
+      ],
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "sensitive_data_removed": { "const": true }
+  },
+  "additionalProperties": false
+}

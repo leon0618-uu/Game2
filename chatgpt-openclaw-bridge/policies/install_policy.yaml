@@ -1,0 +1,28 @@
+low:
+  examples:
+    - markdown_workflow
+    - checklist
+    - code_review_rule
+    - handoff_format
+  action: chatgpt_review_then_single_agent_grey_release
+
+medium:
+  examples:
+    - powershell_python_or_node_scripts
+    - project_file_edits
+    - build_or_test_runner
+    - trusted_git_source
+  action: chatgpt_security_review_sandbox_test_qa_verification
+
+high:
+  examples:
+    - admin_rights
+    - system_config
+    - global_dependency
+    - secrets_or_accounts
+    - unknown_downloads
+    - delete_upload_or_remote_execution
+    - plugin_install
+    - network_port_exposure
+  action: user_approval_required
+

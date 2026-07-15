@@ -1,0 +1,20 @@
+immediate_escalation_states:
+  - failed
+  - timed_out
+  - lost
+
+stalled:
+  check_interval_minutes: 5
+  consecutive_checks: 3
+
+long_thresholds:
+  unity_first_import_minutes: 30
+  full_player_build_minutes: 30
+  large_asset_import_minutes: 45
+
+repeat_limits:
+  same_error: 2
+  same_repair_failure: 2
+  automatic_rework: 3
+  plan_cycle: 3
+

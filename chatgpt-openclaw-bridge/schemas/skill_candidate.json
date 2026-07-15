@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SkillCandidate",
+  "type": "object",
+  "required": ["name", "source_task", "trigger", "validation", "risk", "install_agent"],
+  "properties": {
+    "name": { "type": "string" },
+    "source_task": { "type": "string" },
+    "trigger": { "type": "array", "items": { "type": "string" } },
+    "validation": { "type": "array", "items": { "type": "string" } },
+    "risk": { "enum": ["low", "medium", "high"] },
+    "install_agent": { "type": "string" }
+  }
+}
+

@@ -1,0 +1,18 @@
+create_when_any:
+  - same_issue_count_at_least_2
+  - successful_workflow_count_at_least_2
+  - complex_and_reusable
+  - project_hard_constraint
+  - mistake_could_damage_project
+  - repeated_validation_miss
+  - shared_handoff_format
+
+never_create_when_any:
+  - one_off
+  - not_validated
+  - file_specific_patch_only
+  - contains_secret_or_private_data
+  - unclear_source_scripts
+  - overbroad_permissions
+  - no_validation_method
+

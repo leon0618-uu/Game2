@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SkillTestResult",
+  "type": "object",
+  "required": ["skill", "agent", "status", "tests", "rollback_available"],
+  "properties": {
+    "skill": { "type": "string" },
+    "agent": { "type": "string" },
+    "status": { "enum": ["PASS", "CONDITIONAL_PASS", "REWORK", "BLOCKED"] },
+    "tests": { "type": "array" },
+    "rollback_available": { "type": "boolean" }
+  }
+}
+

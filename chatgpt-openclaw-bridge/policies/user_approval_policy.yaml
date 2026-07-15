@@ -1,0 +1,16 @@
+always_requires_user_approval:
+  - push
+  - create_pr
+  - merge_pr
+  - release
+  - core_gameplay_rule_change
+  - confirmed_numeric_rule_change
+  - engine_major_version_change
+  - paid_service
+  - high_risk_system_dependency
+  - unclear_license_asset
+  - incompatible_save_format_change
+  - admin_permission
+  - plugin_install
+  - network_port_exposure
+

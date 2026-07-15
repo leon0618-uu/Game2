@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "InterventionDirective",
+  "type": "object",
+  "required": [
+    "intervention_id",
+    "task_id",
+    "root_cause",
+    "confidence",
+    "intervention_level",
+    "decision",
+    "stop_current_attempts",
+    "instructions",
+    "patches",
+    "tests_required",
+    "acceptance_criteria",
+    "rollback",
+    "skill_candidate",
+    "user_approval_required"
+  ],
+  "properties": {
+    "intervention_level": { "enum": ["L1", "L2", "L3", "L4", "L5"] },
+    "decision": {
+      "enum": [
+        "CONTINUE",
+        "REPAIR",
+        "REWORK",
+        "REPLAN",
+        "CREATE_SKILL",
+        "INSTALL_TOOL",
+        "USER_APPROVAL_REQUIRED",
+        "BLOCKED_EXTERNAL",
+        "STOP",
+        "PASS",
+        "CONDITIONAL_PASS"
+      ]
+    }
+  }
+}
+

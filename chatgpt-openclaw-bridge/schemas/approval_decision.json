@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ApprovalDecision",
+  "type": "object",
+  "required": [
+    "decision_id",
+    "request_id",
+    "decided_at",
+    "decision",
+    "decided_by",
+    "notes",
+    "request_action_type",
+    "request_item",
+    "request_command",
+    "sensitive_data_removed"
+  ],
+  "properties": {
+    "decision_id": { "type": "string", "minLength": 1 },
+    "request_id": { "type": "string", "minLength": 1 },
+    "decided_at": { "type": "string", "minLength": 1 },
+    "decision": { "enum": ["approve", "reject", "pause_and_inspect"] },
+    "decided_by": { "type": "string", "minLength": 1 },
+    "notes": { "type": "string" },
+    "request_action_type": {
+      "enum": [
+        "push",
+        "create_pr",
+        "merge_pr",
+        "release",
+        "skill_apply",
+        "skill_install",
+        "plugin_install",
+        "system_config",
+        "secret_config",
+        "open_port",
+        "paid_service",
+        "other"
+      ]
+    },
+    "request_item": { "type": "string", "minLength": 1 },
+    "request_command": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "sensitive_data_removed": { "const": true }
+  },
+  "additionalProperties": false
+}
