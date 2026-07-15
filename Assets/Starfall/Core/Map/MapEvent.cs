@@ -163,6 +163,38 @@ namespace Starfall.Core.Map
                 anchorId: anchorId,
                 description: description);
 
+        // ──────────── MAP-11a 工厂（doc2 §21.1 衍生）────────────
+
+        /// <summary>构造 OnAnomalyDetected 事件（按 tile 报告）。</summary>
+        public static MapEvent AnomalyDetected(GridCoord coord, string description = null)
+            => new MapEvent(
+                MapEventKind.OnAnomalyDetected,
+                coord: coord,
+                description: description);
+
+        /// <summary>构造 OnTileFractured 事件（含新 stability 字节）。</summary>
+        public static MapEvent TileFractured(GridCoord coord, int newStabilityByte, string description = null)
+            => new MapEvent(
+                MapEventKind.OnTileFractured,
+                coord: coord,
+                newValue: newStabilityByte,
+                description: description);
+
+        /// <summary>构造 OnGateFaultTriggered 事件（含阶段字节）。</summary>
+        public static MapEvent GateFaultTriggered(int stageByte, string description = null)
+            => new MapEvent(
+                MapEventKind.OnGateFaultTriggered,
+                newValue: stageByte,
+                description: description);
+
+        /// <summary>构造 OnTileReconstructed 事件（含新 stability 字节）。</summary>
+        public static MapEvent TileReconstructed(GridCoord coord, int newStabilityByte, string description = null)
+            => new MapEvent(
+                MapEventKind.OnTileReconstructed,
+                coord: coord,
+                newValue: newStabilityByte,
+                description: description);
+
         // ──────────── 等值 / 排序 ────────────
 
         public bool Equals(MapEvent other)
@@ -297,5 +329,19 @@ namespace Starfall.Core.Map
 
         /// <summary><see cref="Starfall.Core.Map.Commands.DecompressPhaseCommand"/> 触发相位解挤压（撤销）。</summary>
         OnPhaseDecompressed = 14,
+
+        // ──────────── MAP-11a 增量（doc2 §21.1 衍生）────────────
+
+        /// <summary>全局 CV 处于 Anomalous 阶段，检测到异常（按 tile）。</summary>
+        OnAnomalyDetected = 15,
+
+        /// <summary>tile 进入 Fractured / Collapsing / Collapsed 状态。</summary>
+        OnTileFractured = 16,
+
+        /// <summary>全局 CV 达到 GateFault 阈值（≥ 80），终态触发。</summary>
+        OnGateFaultTriggered = 17,
+
+        /// <summary>tile 被 ReconstructTileCommand 从 Collapsed / Fractured 恢复。</summary>
+        OnTileReconstructed = 18,
     }
 }
