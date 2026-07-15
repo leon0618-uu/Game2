@@ -83,6 +83,39 @@ namespace Starfall.Core.Map.State
         public const byte TagObjectAnchorY = 0x63;
         public const byte TagObjectAnchorLayer = 0x64;
 
+        // MAP-09 新增：强类型运行时 RegionState + SpawnPoint
+        public const byte TagRegionStates = 0x34;
+        public const byte TagSpawnPoints = 0x35;
+
+        // RegionState 子标签（与 MapRegionStateHasher 同协议但 tag 偏移以避免冲突）
+        public const byte TagRStateId = 0x90;
+        public const byte TagRStateKind = 0x91;
+        public const byte TagRStateOwnerSide = 0x92;
+        public const byte TagRStatePriority = 0x93;
+        public const byte TagRStateActivation = 0x94;
+        public const byte TagRStateBoundsCount = 0x95;
+        public const byte TagRStateBoundsVertex = 0x96;
+        public const byte TagRStateTriggersCount = 0x97;
+        public const byte TagRStateTriggerKind = 0x98;
+        public const byte TagRStateTriggerTag = 0x99;
+        public const byte TagRStateTriggerThreshold = 0x9A;
+        public const byte TagRStateState = 0x9B;
+        public const byte TagRStateCurrentOwnerSide = 0x9C;
+        public const byte TagRStateOccupantCount = 0x9D;
+        public const byte TagRStateTickEntered = 0x9E;
+        public const byte TagRStateActivationProgress = 0x9F;
+        public const byte TagRStateOccupiedCells = 0xA0;
+
+        // SpawnPoint 子标签
+        public const byte TagSpawnId = 0xA1;
+        public const byte TagSpawnRegionId = 0xA2;
+        public const byte TagSpawnCoordX = 0xA3;
+        public const byte TagSpawnCoordY = 0xA4;
+        public const byte TagSpawnCoordLayer = 0xA5;
+        public const byte TagSpawnOwnerSide = 0xA6;
+        public const byte TagSpawnCapacity = 0xA7;
+        public const byte TagSpawnActive = 0xA8;
+
         /// <summary>计算 <see cref="MapState"/> 的 FNV-1a 64 位哈希；null 输入返回 offset_basis。</summary>
         public static ulong CalculateDeterministicHash(MapState state)
         {
@@ -169,6 +202,73 @@ namespace Starfall.Core.Map.State
                 h = MixInt32(h, TagObjectAnchorX, o.Anchor.X);
                 h = MixInt32(h, TagObjectAnchorY, o.Anchor.Y);
                 h = MixInt32(h, TagObjectAnchorLayer, (int)o.Anchor.Layer);
+            }
+
+            // ──────────── MAP-09：RegionStates（按 RegionId 升序）────────────
+            var sortedRegionStates = new List<Starfall.Core.Map.Regions.MapRegionState>(state.RegionStates);
+            sortedRegionStates.Sort((a, b) =>
+                a.Definition.RegionIdValue.Value.CompareTo(b.Definition.RegionIdValue.Value));
+            h = MixByte(h, TagRegionStates);
+            h = MixInt32(h, sortedRegionStates.Count);
+            foreach (var rs in sortedRegionStates)
+            {
+                var rdef = rs.Definition;
+                h = MixInt32(h, TagRStateId, rdef.RegionIdValue.Value);
+                h = MixInt32(h, TagRStateKind, (int)rdef.Kind);
+                h = MixInt32(h, TagRStateOwnerSide, rdef.OwnerSide);
+                h = MixInt32(h, TagRStatePriority, rdef.Priority);
+                h = MixInt32(h, TagRStateActivation, (int)rdef.Activation);
+                // Bounds: 拷贝后按 GridCoord.CompareTo 排序以保证哈希确定（不管输入顺序）。
+                var sortedBounds = new List<Starfall.Core.Map.Coordinates.GridCoord>(rdef.Bounds);
+                sortedBounds.Sort();
+                h = MixInt32(h, TagRStateBoundsCount, sortedBounds.Count);
+                for (int i = 0; i < sortedBounds.Count; i++)
+                {
+                    var v = sortedBounds[i];
+                    h = MixByte(h, TagRStateBoundsVertex);
+                    h = MixInt32(h, v.X);
+                    h = MixInt32(h, v.Y);
+                    h = MixInt32(h, (int)v.Layer);
+                }
+                h = MixInt32(h, TagRStateTriggersCount, rdef.Triggers.Count);
+                for (int i = 0; i < rdef.Triggers.Count; i++)
+                {
+                    var t = rdef.Triggers[i];
+                    h = MixInt32(h, TagRStateTriggerKind, (int)t.Kind);
+                    h = MixString(h, TagRStateTriggerTag, t.Tag);
+                    h = MixInt32(h, TagRStateTriggerThreshold, t.Threshold);
+                }
+                h = MixInt32(h, TagRStateState, (int)rs.State);
+                h = MixInt32(h, TagRStateCurrentOwnerSide, rs.CurrentOwnerSide);
+                h = MixInt32(h, TagRStateOccupantCount, rs.OccupantCount);
+                h = MixInt32(h, TagRStateTickEntered, rs.TickEntered);
+                h = MixInt32(h, TagRStateActivationProgress, rs.ActivationProgress);
+                h = MixByte(h, TagRStateOccupiedCells);
+                h = MixInt32(h, rs.CurrentlyOccupiedCells.Count);
+                for (int i = 0; i < rs.CurrentlyOccupiedCells.Count; i++)
+                {
+                    var c = rs.CurrentlyOccupiedCells[i];
+                    h = MixInt32(h, c.X);
+                    h = MixInt32(h, c.Y);
+                    h = MixInt32(h, (int)c.Layer);
+                }
+            }
+
+            // ──────────── MAP-09：SpawnPoints（按 SpawnId 升序）────────────
+            var sortedSpawns = new List<Starfall.Core.Map.Regions.MapSpawnPoint>(state.SpawnPoints);
+            sortedSpawns.Sort((a, b) => a.SpawnIdValue.Value.CompareTo(b.SpawnIdValue.Value));
+            h = MixByte(h, TagSpawnPoints);
+            h = MixInt32(h, sortedSpawns.Count);
+            foreach (var s in sortedSpawns)
+            {
+                h = MixInt32(h, TagSpawnId, s.SpawnIdValue.Value);
+                h = MixInt32(h, TagSpawnRegionId, s.RegionIdValue);
+                h = MixInt32(h, TagSpawnCoordX, s.Coord.X);
+                h = MixInt32(h, TagSpawnCoordY, s.Coord.Y);
+                h = MixInt32(h, TagSpawnCoordLayer, (int)s.Coord.Layer);
+                h = MixInt32(h, TagSpawnOwnerSide, s.OwnerSide);
+                h = MixInt32(h, TagSpawnCapacity, s.Capacity);
+                h = MixInt32(h, TagSpawnActive, s.Active ? 1 : 0);
             }
 
             return h;
