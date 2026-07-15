@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Starfall.Core.Map;
 using Starfall.Core.Map.Coordinates;
 using Starfall.Core.Map.Regions;
 using Starfall.Core.Map.State;
@@ -58,7 +59,7 @@ namespace Starfall.Core.Map.Collapse
         /// 推进 1 回合：GlobalCV += <see cref="DefaultTickDelta"/>；按阶段 Emit 事件 + 应用效果。
         /// </summary>
         /// <returns>本 Tick 内产生的全部 MapEvent（按 stage 顺序追加，跨 stage 内已 Sort）。</returns>
-        public IReadOnlyList<MapEvent.MapEventKind> Tick(
+        public IReadOnlyList<MapEventKind> Tick(
             MapState mapState,
             MapRegionService regionService = null)
         {
@@ -110,11 +111,11 @@ namespace Starfall.Core.Map.Collapse
             }
 
             // 5) 阶段切换检测：返回哪些 stage transition 发生，供调用方决策事件 Emit
-            var result = new List<MapEvent.MapEventKind>(1);
+            var result = new List<MapEventKind>(1);
             if (newStage != oldStage)
-                result.Add(MapEvent.MapEventKind.OnGlobalCVChanged); // 阶段切换
+                result.Add(MapEventKind.OnGlobalCVChanged); // 阶段切换
             else if (newValue != oldValue)
-                result.Add(MapEvent.MapEventKind.OnGlobalCVChanged); // 数值变化
+                result.Add(MapEventKind.OnGlobalCVChanged); // 数值变化
             return result;
         }
 

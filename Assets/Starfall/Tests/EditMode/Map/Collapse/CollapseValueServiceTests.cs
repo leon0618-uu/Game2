@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using NUnit.Framework;
+using Starfall.Core.Map;
 using Starfall.Core.Map.Collapse;
 using Starfall.Core.Map.Coordinates;
 using Starfall.Core.Map.Regions;
@@ -96,7 +97,7 @@ namespace Starfall.Tests.EditMode.Map.Collapse
             //     Stable 阶段不变化也 Emit，因为值变了（0→1），
             //     但阶段没变 = 仍 Emit OnGlobalCVChanged 表示数值变化。
             //     严格语义：值变 = 必有 OnGlobalCVChanged。
-            Assert.Contains(MapEvent.MapEventKind.OnGlobalCVChanged, kinds);
+            Assert.Contains(MapEventKind.OnGlobalCVChanged, kinds);
         }
 
         // ──────────── 7-9) ApplyLocalDamage ────────────

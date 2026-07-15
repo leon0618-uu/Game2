@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Starfall.Core.Map;
+using Starfall.Core.Map.Commands;
 using Starfall.Core.Map.State;
 
 namespace Starfall.Core.Map.Collapse
