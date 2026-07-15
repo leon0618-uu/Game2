@@ -66,6 +66,20 @@ namespace Starfall.Core.Map.State
                 clone.MapObjectsInternal.Add(copy);
             }
 
+            // MAP-09 RegionStates（值引用复制；MapRegionState 内部状态可能被后续服务修改，
+            // 如需完全隔离，需复制每个字段。这里仅复制引用 + 通过 .ctor 创建新壳）。
+            foreach (var rs in source.RegionStatesInternal)
+            {
+                var copy = new Starfall.Core.Map.Regions.MapRegionState(rs.Definition, rs.TickEntered);
+                clone.RegionStatesInternal.Add(copy);
+            }
+
+            // MAP-09 SpawnPoints：MapSpawnPoint 是 readonly struct，按值复制。
+            foreach (var s in source.SpawnPointsInternal)
+            {
+                clone.SpawnPointsInternal.Add(s);
+            }
+
             return clone;
         }
     }

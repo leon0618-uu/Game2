@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Starfall.Core.Anchor;
 using Starfall.Core.Map.Coordinates;
+using Starfall.Core.Map.Regions;
 
 namespace Starfall.Core.Map.State
 {
@@ -13,9 +14,24 @@ namespace Starfall.Core.Map.State
     /// <list type="bullet">
     /// <item>不可变 <see cref="MapDefinition"/>（创建后不修改 Definition 字段）。</item>
     /// <item>运行时整数状态：<see cref="Version"/>、<see cref="ActiveLayer"/>、<see cref="GlobalCollapseValue"/>。</item>
-    /// <item>4 个集合（Tiles / Anchors / Regions / MapObjects），对外暴露 <see cref="IReadOnlyList{T}"/>；
-    ///       内部使用 <see cref="List{T}"/>，由 <see cref="MapStateCloner"/> 完整深拷贝。</item>
+    /// <item>6 个集合（Tiles / Anchors / Regions / MapObjects / RegionStates / SpawnPoints），对外暴露
+    ///       <see cref="IReadOnlyList{T}"/>；内部使用 <see cref="List{T}"/>，由 <see cref="MapStateCloner"/>
+    ///       完整深拷贝。</item>
     /// </list>
+    ///
+    /// <para/>
+    /// 本轮（MAP-09）在 MAP-02 基础上**新增**：
+    /// <list type="bullet">
+    /// <item><see cref="RegionStates"/>：强类型运行时区域集合（与 <see cref="MapRegionDefinition"/>
+    ///       + <see cref="MapRegionState"/> 配合）。</item>
+    /// <item><see cref="SpawnPoints"/>：出生点集合（<see cref="MapSpawnPoint"/>）。</item>
+    /// </list>
+    ///
+    /// <para/>
+    /// 既有 <see cref="Regions"/>（MAP-02 占位 <see cref="MapRegion"/> POCO）保留 ——
+    /// 它服务于 MAP-03/08 的 <c>FlipRegionPhaseCommand</c> / <c>CreateConstellationAreaCommand</c>
+    /// 等通过 RegionId + TileCoords 字典式访问的路径。新旧 region 字段共存，由不同命令路径访问，
+    /// 互不干扰。MAP-09 阶段不删除 legacy 字段（[MAP_SYSTEM_AUDIT §3.3] 兼容性约束）。
     ///
     /// <para/>
     /// 本轮（MAP-02）只建容器，不接任何 <c>IMapCommand</c>（MAP-03）。后续
@@ -60,11 +76,17 @@ namespace Starfall.Core.Map.State
         internal readonly List<AnchorZone> AnchorsInternal;
         internal readonly List<MapRegion> RegionsInternal;
         internal readonly List<MapObjectInstance> MapObjectsInternal;
+        // MAP-09 新增：强类型运行时区域集合（与 legacy Regions 并存）。
+        internal readonly List<MapRegionState> RegionStatesInternal;
+        // MAP-09 新增：出生点集合。
+        internal readonly List<MapSpawnPoint> SpawnPointsInternal;
 
         public IReadOnlyList<GridCoord> Tiles => TilesInternal;
         public IReadOnlyList<AnchorZone> Anchors => AnchorsInternal;
         public IReadOnlyList<MapRegion> Regions => RegionsInternal;
         public IReadOnlyList<MapObjectInstance> MapObjects => MapObjectsInternal;
+        public IReadOnlyList<MapRegionState> RegionStates => RegionStatesInternal;
+        public IReadOnlyList<MapSpawnPoint> SpawnPoints => SpawnPointsInternal;
 
         public MapState(MapDefinition definition)
         {
@@ -76,6 +98,8 @@ namespace Starfall.Core.Map.State
             AnchorsInternal = new List<AnchorZone>();
             RegionsInternal = new List<MapRegion>();
             MapObjectsInternal = new List<MapObjectInstance>();
+            RegionStatesInternal = new List<MapRegionState>();
+            SpawnPointsInternal = new List<MapSpawnPoint>();
         }
 
         // ──────────── 集合修改入口（MAP-02 阶段仅供 Cloner / Test 使用）────────────
@@ -171,6 +195,59 @@ namespace Starfall.Core.Map.State
             return false;
         }
 
+        // ──────────── MAP-09 新增入口（RegionStates / SpawnPoints）────────────
+
+        /// <summary>添加一个 <see cref="MapRegionState"/>（由 <see cref="MapRegionService.Register"/> / 命令调用）。</summary>
+        public void AddRegionState(MapRegionState regionState)
+        {
+            if (regionState == null) throw new ArgumentNullException(nameof(regionState));
+            RegionStatesInternal.Add(regionState);
+        }
+
+        /// <summary>按 RegionId 移除 <see cref="MapRegionState"/>。</summary>
+        public bool RemoveRegionState(int regionId)
+        {
+            for (int i = 0; i < RegionStatesInternal.Count; i++)
+            {
+                if (RegionStatesInternal[i].Definition.RegionIdValue.Value == regionId)
+                {
+                    RegionStatesInternal.RemoveAt(i);
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>添加一个 <see cref="MapSpawnPoint"/>（由 <see cref="Starfall.Core.Map.Commands.PlaceSpawnPointCommand"/> 调用）。</summary>
+        public void AddSpawnPoint(MapSpawnPoint spawnPoint)
+        {
+            if (spawnPoint.SpawnIdValue.Value < 0)
+                throw new ArgumentOutOfRangeException(nameof(spawnPoint), spawnPoint,
+                    "SpawnPoint.SpawnId must be >= 0.");
+            // SpawnId 不重复
+            for (int i = 0; i < SpawnPointsInternal.Count; i++)
+            {
+                if (SpawnPointsInternal[i].SpawnIdValue.Value == spawnPoint.SpawnIdValue.Value)
+                    throw new InvalidOperationException(
+                        $"Duplicate SpawnId: {spawnPoint.SpawnIdValue.Value}.");
+            }
+            SpawnPointsInternal.Add(spawnPoint);
+        }
+
+        /// <summary>按 SpawnId 移除 <see cref="MapSpawnPoint"/>。</summary>
+        public bool RemoveSpawnPoint(int spawnId)
+        {
+            for (int i = 0; i < SpawnPointsInternal.Count; i++)
+            {
+                if (SpawnPointsInternal[i].SpawnIdValue.Value == spawnId)
+                {
+                    SpawnPointsInternal.RemoveAt(i);
+                    return true;
+                }
+            }
+            return false;
+        }
+
         public void AddMapObject(MapObjectInstance obj)
         {
             if (obj == null) throw new ArgumentNullException(nameof(obj));
@@ -199,6 +276,6 @@ namespace Starfall.Core.Map.State
         public ulong PostStateHash => MapStateHasher.CalculateDeterministicHash(this);
 
         public override string ToString()
-            => $"MapState(Def={Definition}, Ver={Version}, Layer={ActiveLayer}, CV={GlobalCollapseValue}, Tiles={TilesInternal.Count}, Anchors={AnchorsInternal.Count}, Regions={RegionsInternal.Count}, Objects={MapObjectsInternal.Count})";
+            => $"MapState(Def={Definition}, Ver={Version}, Layer={ActiveLayer}, CV={GlobalCollapseValue}, Tiles={TilesInternal.Count}, Anchors={AnchorsInternal.Count}, Regions={RegionsInternal.Count}, Objects={MapObjectsInternal.Count}, RegionStates={RegionStatesInternal.Count}, SpawnPoints={SpawnPointsInternal.Count})";
     }
 }
