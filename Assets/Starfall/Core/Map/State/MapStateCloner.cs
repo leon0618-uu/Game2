@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using Starfall.Core.Anchor;
 using Starfall.Core.Map.Collapse;
 using Starfall.Core.Map.Coordinates;
+using Starfall.Core.Map.Environment;
 
 namespace Starfall.Core.Map.State
 {
@@ -31,6 +32,11 @@ namespace Starfall.Core.Map.State
     ///       <see cref="Starfall.Core.Map.Regions.MapSpawnPoint"/>（readonly struct）。</item>
     /// <item><see cref="MapState.LocalCVs"/>（MAP-11a）：新 <see cref="Dictionary{GridCoord, LocalCollapseValue}"/>；
     ///       每个 <see cref="LocalCollapseValue"/> 按值复制（readonly struct）。</item>
+    /// <item><see cref="MapState.ActiveSchedule"/>（MAP-11b）：<see cref="MapEnvironmentSchedule"/> 是
+    ///       readonly struct，其内部 events list 通过构造函数浅拷贝隔离。</item>
+    /// <item><see cref="MapState.EnvironmentTickAccumulator"/>（MAP-11b）：值复制。</item>
+    /// <item><see cref="MapState.PendingEvents"/>（MAP-11b）：新 <see cref="List{MapEnvironmentEvent}"/>；
+    ///       每个 <see cref="MapEnvironmentEvent"/> 是 class，按引用复制但本身不可变。</item>
     /// </list>
     /// </summary>
     public static class MapStateCloner
@@ -45,6 +51,9 @@ namespace Starfall.Core.Map.State
                 Version = source.Version,
                 ActiveLayer = source.ActiveLayer,
                 GlobalCV = source.GlobalCV,
+                // MAP-11b：ActiveSchedule 是 readonly struct，值复制即独立。
+                ActiveSchedule = source.ActiveSchedule,
+                EnvironmentTickAccumulator = source.EnvironmentTickAccumulator,
             };
 
             // Tiles：GridCoord 是 readonly struct，List.Add 复制值即可。
@@ -91,6 +100,12 @@ namespace Starfall.Core.Map.State
             foreach (var kv in source.LocalCVsInternal)
             {
                 clone.LocalCVsInternal[kv.Key] = kv.Value;
+            }
+
+            // MAP-11b PendingEvents：MapEnvironmentEvent 是 class，引用复制即可（events 本身不可变）。
+            foreach (var ev in source.PendingEventsInternal)
+            {
+                clone.PendingEventsInternal.Add(ev);
             }
 
             return clone;
