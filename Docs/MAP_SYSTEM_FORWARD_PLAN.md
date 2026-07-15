@@ -3,7 +3,7 @@
 > Lead：`xingyuan-lead`（2026-07-14 09:32 GMT+8 起生效）
 > 输入：[`.incoming/doc1-core-systems.txt`](../.incoming/doc1-core-systems.txt) + [`.incoming/doc2-map-dev-plan.txt`](../.incoming/doc2-map-dev-plan.txt)（已由 xingyuan-architect 吸收为 [Docs/MAP_SYSTEM_AUDIT.md](MAP_SYSTEM_AUDIT.md)）
 > 路线：**Route A 增量升级**（保留 4 程序集 + `GridPos` / `BoardState` 命名 + `Assets/Starfall/Core/Map/` 新增子目录）
-> 状态（2026-07-15 13:00 GMT+8）：**MAP-01 + MAP-02 + MAP-04 + MAP-06 + MAP-07 + MAP-08 已上线 main HEAD `ba42e73`**；ADR-0003 Status:**Accepted**；5 个 qa Gate 报告（MAP-07 为 Lead consolidated）；**核心玩法（双层 + 相位翻转 + 坠落 + 挤压）已上线**；本计划文档已与该状态同步。
+> 状态（2026-07-15 15:50 GMT+8）：**MAP-01 + MAP-02 + MAP-03 + MAP-04 + MAP-06 + MAP-07 + MAP-08 已上线 main HEAD `48fbb27`**；ADR-0003 + ADR-0004 Status:**Accepted**；6 个 qa Gate 报告（MAP-07 = Lead consolidated / MAP-03 = qa consolidated）；**核心玩法（IMapCommand 框架 + 双层 + 相位翻转 + 坠落 + 挤压）已上线**；本计划文档已与该状态同步。
 > 用户 2026-07-14 14:18 重申规则：**派单时需理清完整依赖链，不遗漏，每项需完成**。
 > 来源依赖链（18 项 MAP，每次派单必须列全）：见本 doc §2 P0 完成表 + [Docs/IMPLEMENTATION_STATUS.md §4.1](../IMPLEMENTATION_STATUS.md)（也可参考 memory/2026-07-15.md）。
 
@@ -31,6 +31,7 @@
 | map-05-pathfinding | A* + MapPassability + MovementRange（依赖 MAP-04 的 TileDefinition.BlocksMovement） | ⏳ 候补 | — |
 | map-07-dual-layer | PhasePairLookup（双向配对 + 自环忽略）/ CrossLayerValidator（PAIR_ORPHAN / PAIR_ASYMMETRIC / FLIP_DESYNC 三态）/ MapTileState.ActiveDimension per-tile 字段（PhaseLocked 校验 + 双向 TryFlipTo）/ ActiveDimensionMigration（旧 dict → 新字段迁移）/ LineOfSightService.ComputeCrossPhaseLOS 重载（4-邻居 N→E→S→W；Full Cover 必挡 / Half Cover 忽略）/ PhaseFlipStateService 重构（保留 legacy dict 路径兼容 MAP-08 72 测试无变更通过）+ 6 fixture / 73 EditMode 测试（验收 #12 "MAP-07" ID 断言） | ✅ | `ba42e73` |
 | **map-08-phase-flip** | **IMapCommand (MAP-03 stub) + MapCommandResult + PhaseFlipStateService (attach 模式，per-map flipped tile 字典) + FlipTilePhaseCommand + FlipRegionPhaseCommand (atomic + PhaseLocked/PhaseFlippable 验证) + FallResolutionService (曼哈顿距离→Y→X→Layer 排序) + PhaseCompressionResolutionService (4-邻居 N→E→S→W + Manhattan=2 环回退) + 重构 FallingCommand 调 FallResolutionService + 2 个 BattleEvent UnitEnteredVoid/UnitPhaseCompressed + 6 fixture / 72 EditMode 测试（验收 #12 "MAP-08" ID 断言）** | **✅ 核心玩法最高优先级** | **`8538f48`** |
+| **map-03-imap-command** | **完整 IMapCommand（Execute/Undo/Version/CommandId/Dependencies） + MapCommandResult + MapEvent struct（8 种事件 + 稳定排序） + MapCommandExecutor（Run / UndoLast / Version / Dependencies 校验） + 14 个新 Map commands + AnchorStateService（7 状态） + MapState.Version 字段 + 5 fixture / 97 EditMode 测试（验收 #12 "MAP-03" ID 断言 17 项）** | **✅** | **`48fbb27`** |
 
 ## 3. 下一轮派活范围（待用户回执后立刻 spawn）
 
@@ -141,13 +142,13 @@
 
 ## 4. 待用户裁决的事项
 
-> MAP-02 + MAP-04 + MAP-06 + MAP-07 + **MAP-08** 已完成（main HEAD `ba42e73`，待 push + cleanup），**next package 已选定**。
-> 18 项全局依赖链现状：**7 ✅**（MAP-01/02/04/06/07/08 + ADR-0003）+ **11 ⬜**（MAP-03/05/09-18）。
-> 下一轮已选定：**MAP-03 完整 IMapCommand + MapCommandExecutor + 16 Map commands**（用户 2026-07-15 11:36 GMT+8 批准派单；MAP-08 已 stub IMapCommand，需补完 + 16 命令含 PhaseLock/PhaseUnlock/TileModify/RegionReshape 等）。
+> MAP-02 + MAP-03 + MAP-04 + MAP-06 + MAP-07 + **MAP-08** 已完成（main HEAD `48fbb27`，**等 push**），**next package 待用户选**。
+> 18 项全局依赖链现状：**8 ✅**（MAP-01/02/03/04/06/07/08 + ADR-0003/0004）+ **10 ⬜**（MAP-05/09-18）。
+> 下一轮 Lead 默认推荐：**MAP-05 A* 寻路 + MapPassability + MovementRange**（依赖 MAP-04 TileDefinition.BlocksMovement / BlocksProjectile 已就位；MAP-03 MapCommandExecutor 已就绪可包装为 MoveCommand 配套）。
 
 | # | 决策 | Lead 默认假设 | 备注 |
 |---|---|---|---|
-| Q1 | ~~下一轮派哪个包？~~ **已解决（2026-07-15 11:36 GMT+8）** → 派 **MAP-03**（Lead 推荐 + 用户批准） | — | MAP-07 已上线 `ba42e73` |
+| Q1 | ~~下一轮派哪个包？~~ **MAP-03 已完成（2026-07-15 15:11 GMT+8）** → 现推荐 **MAP-05** | — | MAP-03 已上线 `48fbb27` |
 | Q2 | `MAP_DEV_PHASE_TEST_001`（12×14 双层）何时启动 | P2（route A 路线），等 MAP-17 阶段 | — |
 | Q3 | `agent/map-00-fix-battle-state-cloner`（14 BattleStateClonerTests）是否立单任务 | **用户 2026-07-14 12:38 GMT+8 明确不立**；保留为 unmerged 分支 | qa MAP-02 advisory #4 描述 |
 | Q4 | ⚠️ **MAP-04 已完成**（2026-07-14 23:05 GMT+8 全绿 + 上 main + push + 清理），不在需决策列表中 | — | — |
