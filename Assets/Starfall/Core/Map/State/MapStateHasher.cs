@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using Starfall.Core.Anchor;
+using Starfall.Core.Map.Collapse;
 using Starfall.Core.Map.Coordinates;
 
 namespace Starfall.Core.Map.State
@@ -36,9 +37,13 @@ namespace Starfall.Core.Map.State
     /// <item><c>ActiveLayer</c> (tag=0x21, int)</item>
     /// <item><c>GlobalCollapseValue</c> (tag=0x22, int)</item>
     /// <item><c>Tiles</c> (tag=0x30, collection-of-struct，按 GridCoord.CompareTo 排序)</item>
-    /// <item><c>Anchors</c> (tag=0x31, collection，按 AnchorZone.ZoneId 升序；每个 zone 写入 ZoneId + 顶点规范化序列）</item>
+    /// <item><c>Anchors</c> (tag=0x31, collection，按 AnchorZone.ZoneId 升序；每个 zone 写入 ZoneId + 顶点规范化序列)</item>
     /// <item><c>Regions</c> (tag=0x32, collection，按 RegionId 升序)</item>
     /// <item><c>MapObjects</c> (tag=0x33, collection，按 ObjectId 升序)</item>
+    /// <item><c>RegionStates</c> (tag=0x34, collection，按 RegionId 升序；MAP-09 增量)</item>
+    /// <item><c>SpawnPoints</c> (tag=0x35, collection，按 SpawnId 升序；MAP-09 增量)</item>
+    /// <item><c>GlobalCV</c> (tag=0x36, struct; 4 子标签写入 Value/Stage/Threshold/Tick; MAP-11a 增量)</item>
+    /// <item><c>LocalCVs</c> (tag=0x37, collection，按 GridCoord.CompareTo 排序；MAP-11a 增量)</item>
     /// </list>
     /// </summary>
     public static class MapStateHasher
@@ -87,6 +92,10 @@ namespace Starfall.Core.Map.State
         public const byte TagRegionStates = 0x34;
         public const byte TagSpawnPoints = 0x35;
 
+        // MAP-11a 新增：GlobalCV (typed) + LocalCVs dictionary
+        public const byte TagGlobalCV = 0x36;
+        public const byte TagLocalCVs = 0x37;
+
         // RegionState 子标签（与 MapRegionStateHasher 同协议但 tag 偏移以避免冲突）
         public const byte TagRStateId = 0x90;
         public const byte TagRStateKind = 0x91;
@@ -115,6 +124,20 @@ namespace Starfall.Core.Map.State
         public const byte TagSpawnOwnerSide = 0xA6;
         public const byte TagSpawnCapacity = 0xA7;
         public const byte TagSpawnActive = 0xA8;
+
+        // GlobalCollapseValue 子标签（MAP-11a）
+        public const byte TagGlobalCVValue = 0xB0;
+        public const byte TagGlobalCVStage = 0xB1;
+        public const byte TagGlobalCVThreshold = 0xB2;
+        public const byte TagGlobalCVTick = 0xB3;
+
+        // LocalCollapseValue 子标签（MAP-11a）
+        public const byte TagLocalCVCoordX = 0xB4;
+        public const byte TagLocalCVCoordY = 0xB5;
+        public const byte TagLocalCVCoordLayer = 0xB6;
+        public const byte TagLocalCVValue = 0xB7;
+        public const byte TagLocalCVStability = 0xB8;
+        public const byte TagLocalCVTick = 0xB9;
 
         /// <summary>计算 <see cref="MapState"/> 的 FNV-1a 64 位哈希；null 输入返回 offset_basis。</summary>
         public static ulong CalculateDeterministicHash(MapState state)
@@ -269,6 +292,32 @@ namespace Starfall.Core.Map.State
                 h = MixInt32(h, TagSpawnOwnerSide, s.OwnerSide);
                 h = MixInt32(h, TagSpawnCapacity, s.Capacity);
                 h = MixInt32(h, TagSpawnActive, s.Active ? 1 : 0);
+            }
+
+            // ──────────── MAP-11a：GlobalCollapseValue（typed）────────────
+            // 写入 4 个子字段（Value / Stage / Threshold / Tick）保证显式参与哈希。
+            // 与运行时影子 int GlobalCollapseValue 同步；这里只读 GlobalCV。
+            h = MixByte(h, TagGlobalCV);
+            h = MixInt32(h, TagGlobalCVValue, state.GlobalCV.Value);
+            h = MixInt32(h, TagGlobalCVStage, (int)state.GlobalCV.Stage);
+            h = MixInt32(h, TagGlobalCVThreshold, state.GlobalCV.Threshold);
+            h = MixInt32(h, TagGlobalCVTick, state.GlobalCV.TickAccumulated);
+
+            // ──────────── MAP-11a：LocalCollapseValues（按 GridCoord.CompareTo 排序）────────────
+            // 拷贝 keys 后排序；Dictionary 本体保持插入顺序。
+            var sortedLocalCvKeys = new List<GridCoord>(state.LocalCVsInternal.Keys);
+            sortedLocalCvKeys.Sort();
+            h = MixByte(h, TagLocalCVs);
+            h = MixInt32(h, sortedLocalCvKeys.Count);
+            foreach (var c in sortedLocalCvKeys)
+            {
+                var lcv = state.LocalCVsInternal[c];
+                h = MixInt32(h, TagLocalCVCoordX, lcv.Coord.X);
+                h = MixInt32(h, TagLocalCVCoordY, lcv.Coord.Y);
+                h = MixInt32(h, TagLocalCVCoordLayer, (int)lcv.Coord.Layer);
+                h = MixInt32(h, TagLocalCVValue, lcv.Value);
+                h = MixInt32(h, TagLocalCVStability, (int)lcv.Stability);
+                h = MixInt32(h, TagLocalCVTick, lcv.TickAccumulated);
             }
 
             return h;

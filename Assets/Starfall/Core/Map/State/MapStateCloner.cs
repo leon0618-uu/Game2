@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Starfall.Core.Anchor;
+using Starfall.Core.Map.Collapse;
 using Starfall.Core.Map.Coordinates;
 
 namespace Starfall.Core.Map.State
@@ -24,6 +25,12 @@ namespace Starfall.Core.Map.State
     ///       构造函数重建（内部 List 与源独立）。</item>
     /// <item><see cref="MapState.MapObjects"/>：新列表；每个 <see cref="MapObjectInstance"/>
     ///       通过构造函数重建（值复制 GridCoord 是 readonly struct）。</item>
+    /// <item><see cref="MapState.RegionStates"/>（MAP-09）：新列表；每个 <see cref="Starfall.Core.Map.Regions.MapRegionState"/>
+    ///       通过构造函数重建。</item>
+    /// <item><see cref="MapState.SpawnPoints"/>（MAP-09）：新列表；值复制
+    ///       <see cref="Starfall.Core.Map.Regions.MapSpawnPoint"/>（readonly struct）。</item>
+    /// <item><see cref="MapState.LocalCVs"/>（MAP-11a）：新 <see cref="Dictionary{GridCoord, LocalCollapseValue}"/>；
+    ///       每个 <see cref="LocalCollapseValue"/> 按值复制（readonly struct）。</item>
     /// </list>
     /// </summary>
     public static class MapStateCloner
@@ -37,7 +44,7 @@ namespace Starfall.Core.Map.State
             {
                 Version = source.Version,
                 ActiveLayer = source.ActiveLayer,
-                GlobalCollapseValue = source.GlobalCollapseValue,
+                GlobalCV = source.GlobalCV,
             };
 
             // Tiles：GridCoord 是 readonly struct，List.Add 复制值即可。
@@ -78,6 +85,12 @@ namespace Starfall.Core.Map.State
             foreach (var s in source.SpawnPointsInternal)
             {
                 clone.SpawnPointsInternal.Add(s);
+            }
+
+            // MAP-11a LocalCVs：LocalCollapseValue 是 readonly struct，按值复制到新 Dictionary。
+            foreach (var kv in source.LocalCVsInternal)
+            {
+                clone.LocalCVsInternal[kv.Key] = kv.Value;
             }
 
             return clone;
