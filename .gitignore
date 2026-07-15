@@ -37,3 +37,9 @@ crashlytics-build.properties
 .DS_Store
 Thumbs.db
 desktop.ini
+
+__pycache__/
+*.pyc
+
+chatgpt-openclaw-bridge/data/**/*.json
+chatgpt-openclaw-bridge/data/**/*.md

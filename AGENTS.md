@@ -538,6 +538,69 @@ mcporter
 nano-pdf
 ```
 
+### 15.1 ChatGPT / Codex 阻塞介入
+
+OpenClaw 任务出现以下任一情况时，`xingyuan-lead` 必须升级给 ChatGPT / Codex 决策层，而不是反复让同一 Agent 自行尝试：
+
+- 任务状态为 `failed`、`timed_out` 或 `lost`；
+- Agent 明确返回能力缺口；
+- 必要工具、环境或权限不可用；
+- 编译、测试或构建阻断；
+- 多个 Agent 对核心技术方案结论互斥；
+- 当前操作可能损坏项目、数据或 Git 历史；
+- 修复需要修改已经确认的核心玩法规则。
+
+升级前必须生成脱敏证据包，至少包含任务目标、验收标准、当前分支、失败命令、错误日志、堆栈、相关 `git diff`、已尝试方案、环境版本、Agent 当前判断和是否已移除敏感信息。不得只提交“无法解决，请帮助”。
+
+ChatGPT / Codex 介入等级：
+
+```text
+L1 方向指导
+L2 深度诊断
+L3 修复接管
+L4 任务重构
+L5 能力扩展
+```
+
+介入结果必须转化为可执行指令、验证命令、验收标准和回滚方案。ChatGPT / Codex 的建议不等于任务完成，仍必须由 `xingyuan-qa` 或对应测试证据验证。
+
+### 15.2 Skill 自进化
+
+当成功修复形成可复用流程时，`xingyuan-lead` 可以创建 Skill Candidate。触发条件包括：
+
+- 同类问题至少出现 2 次；
+- 同一解决流程至少成功使用 2 次；
+- 首次问题但流程复杂且复用价值高；
+- 属于项目硬约束；
+- 错误可能破坏项目；
+- Agent 经常遗漏同一验收步骤；
+- 多个 Agent 需要相同交接格式。
+
+禁止把以下内容固化为 Skill：
+
+- 未验证方案；
+- 一次性临时修改；
+- 只适用于单个文件的补丁；
+- 包含密钥、Token、Cookie、密码或飞书 Secret；
+- 来源不明脚本；
+- 权限过宽流程；
+- 无法设计验收的流程。
+
+Skill 必须走 Proposal、审查、安全检查、单 Agent 灰度、真实任务验证、推广或回滚流程。低风险 Markdown 流程可由 ChatGPT / Codex 审批后灰度；包含脚本或会修改项目文件的中风险 Skill 必须 QA 验证；管理员权限、系统配置、全局依赖、Plugin 安装、开放网络端口、账号或密钥访问等高风险操作必须先获得用户审批。
+
+首批重点 Skill：
+
+```text
+blocked-task-escalation
+agent-handoff
+unity-batchmode-validation
+compile-error-triage
+evidence-package-generation
+skill-candidate-extractor
+```
+
+详细流程见 `Docs/OPENCLAW_CODEX_COLLABORATION.md`。
+
 本机路径、Unity 安装位置、GitHub CLI 状态等环境备注可写入 `TOOLS.md`，但不得记录密钥。
 
 ---

@@ -97,6 +97,8 @@ docs/ADR/      # 架构决策记录
 | [Docs/04_Roadmap_and_Milestones.md](Docs/04_Roadmap_and_Milestones.md) | 路线图与里程碑 |
 | [Docs/05_Test_and_Acceptance.md](Docs/05_Test_and_Acceptance.md) | 测试与验收规范 |
 | [docs/OPENCLAW_REPOSITORY_AUDIT.md](docs/OPENCLAW_REPOSITORY_AUDIT.md) | 完整审计记录 |
+| [Docs/OPENCLAW_CODEX_COLLABORATION.md](Docs/OPENCLAW_CODEX_COLLABORATION.md) | OpenClaw / Codex 阻塞介入与 Skill 自进化协作流程 |
+| [Docs/environment-audit.md](Docs/environment-audit.md) | 本机 OpenClaw / Codex 协作环境审计 |
 | [docs/IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md) | 实现状态 |
 | [docs/KNOWN_LIMITATIONS.md](docs/KNOWN_LIMITATIONS.md) | 已知限制 |
 | [docs/MANUAL_ACCEPTANCE_CHECKLIST.md](docs/MANUAL_ACCEPTANCE_CHECKLIST.md) | 手工验收清单 |
