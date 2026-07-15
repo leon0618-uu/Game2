@@ -75,13 +75,6 @@ namespace Starfall.Core.Map.Commands
             int previousVersion = mapState.Version;
             int newVersion = previousVersion + 1;
 
-            // 一次性 attach 检查（MAP-07 写入前提条件）。
-            var runtimeStates = PhaseFlipStateService.GetRuntimeStates(mapState);
-            if (runtimeStates == null)
-            {
-                return MapCommandResult.Fail("no runtime states attached");
-            }
-
             var registry = PhaseFlipStateService.GetAttachedRegistry(mapState);
             if (registry == null)
             {
@@ -123,8 +116,7 @@ namespace Starfall.Core.Map.Commands
 
             // MAP-07 cascade：若存在配对 tile 且配对 tile 也通过 PhaseFlipStateService，
             // 同步 flip 配对 tile 到 TargetLayer。
-            if (PhasePairLookup.TryGetPair(mapState, TileId, out var pairTileId)
-                && runtimeStates.TryGetValue(pairTileId, out _))
+            if (PhasePairLookup.TryGetPair(mapState, TileId, out var pairTileId))
             {
                 if (registry.TryGetById(pairTileId, out var pairDef))
                 {

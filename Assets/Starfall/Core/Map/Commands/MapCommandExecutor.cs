@@ -126,10 +126,13 @@ namespace Starfall.Core.Map.Commands
                 // 命令实现与 executor 期望不一致时使用 actualNew（视为命令实现已 bypass 了 executor 计算）。
                 // 此分支仅用于未来 MAP-08+ 兼容；MAP-03 阶段命令实现保证 = previousVersion + 1。
             }
+            int previousVersion = mapState.Version; // capture pre-increment value（for undo restore）
             mapState.Version = actualNew > 0 ? actualNew : expectedNew;
 
             // ─── 4) Push 历史 + 记录 CommandId ───
-            _history.Push(new HistoryEntry(cmd, mapState.Version));
+            // HistoryEntry.PreviousVersion 是执行该命令后的 mapState.Version；UndoLast 读取时会
+            // 使用 previousVersion（pre-increment）还原。
+            _history.Push(new HistoryEntry(cmd, previousVersion));
             _executedCommandIds.Add(cmd.CommandId);
 
             // ─── 5) 维护 MaxHistoryDepth：超限弹栈丢弃最旧条目 ───

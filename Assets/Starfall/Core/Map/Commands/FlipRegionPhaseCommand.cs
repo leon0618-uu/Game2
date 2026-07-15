@@ -70,12 +70,6 @@ namespace Starfall.Core.Map.Commands
             int previousVersion = mapState.Version;
             int newVersion = previousVersion + 1;
 
-            var runtimeStates = PhaseFlipStateService.GetRuntimeStates(mapState);
-            if (runtimeStates == null)
-            {
-                return MapCommandResult.Fail("no runtime states attached");
-            }
-
             var registry = PhaseFlipStateService.GetAttachedRegistry(mapState);
             if (registry == null)
                 return MapCommandResult.Fail("no tile registry attached");
