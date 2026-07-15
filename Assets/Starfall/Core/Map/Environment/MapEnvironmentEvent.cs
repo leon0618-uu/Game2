@@ -209,6 +209,10 @@ namespace Starfall.Core.Map.Environment
                 magnitude: delayTicks);
         }
 
+        /// <summary>DeferredTrigger 重载：仅指定 delayTicks（默认 triggerTick=0）。</summary>
+        public static MapEnvironmentEvent DeferredTrigger(GridCoord coord, int delayTicks)
+            => DeferredTrigger(coord, delayTicks, triggerTick: 0);
+
         /// <summary>Phase 4 / 6 复合：地块重建（与 ReconstructTileCommand 对应）。</summary>
         public static MapEnvironmentEvent TileReconstruct(GridCoord coord, int triggerTick = 0)
         {
