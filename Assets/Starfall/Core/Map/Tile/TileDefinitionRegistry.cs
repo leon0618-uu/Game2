@@ -94,6 +94,38 @@ namespace Starfall.Core.Map.Tile
             return false;
         }
 
+        /// <summary>
+        /// 原地替换某个 <see cref="TileDefinition.TileId"/> 对应的 <see cref="TileDefinition"/>（MAP-03 引入）。
+        /// <para/>
+        /// **使用约定**：<paramref name="newDefinition"/> 的 <c>TileId</c> 与 <paramref name="tileId"/>
+        /// 必须一致；<c>Coord</c> 也必须相同（否则相当于"删除并新建"，与本 Update 语义不符）。
+        /// <para/>
+        /// **与 Remove+Register 的差异**：Update 替换后 <see cref="_sortedCache"/> 仍按 GridCoord
+        /// 升序；删除+注册会让 sortedCache 临时乱序后再 sort，行为等价但开销更高。Update 保持单次 sort。
+        /// </summary>
+        public void Update(int tileId, TileDefinition newDefinition)
+        {
+            if (!_byTileId.TryGetValue(tileId, out var coord))
+                throw new ArgumentException(
+                    $"TileId {tileId} is not registered; cannot Update non-existent TileDefinition.",
+                    nameof(tileId));
+            if (newDefinition.TileId != tileId)
+                throw new ArgumentException(
+                    $"newDefinition.TileId={newDefinition.TileId} must equal the replaced tileId={tileId}.",
+                    nameof(newDefinition));
+            if (newDefinition.Coord != coord)
+                throw new ArgumentException(
+                    $"newDefinition.Coord={newDefinition.Coord} must equal the replaced coord={coord}.",
+                    nameof(newDefinition));
+
+            _byCoord[coord] = newDefinition;
+            // 维持 sortedCache 顺序：替换后会重新 sort（不增量优化，避免忘改）。
+            var old = _sortedCache.FindIndex(d => d.TileId == tileId);
+            if (old >= 0) _sortedCache[old] = newDefinition;
+            else _sortedCache.Add(newDefinition);
+            _sortedCache.Sort((a, b) => a.Coord.CompareTo(b.Coord));
+        }
+
         /// <summary>按 <see cref="GridCoord"/> 移除；不存在返回 false。</summary>
         public bool Remove(GridCoord coord)
         {
