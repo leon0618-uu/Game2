@@ -1,12 +1,13 @@
 # IMPLEMENTATION STATUS · MVP "断裂点三号"
 
-> 最后更新：2026-07-15 22:25 GMT+8
-> 状态：MVP 完成（Task 01-20）+ M5+ 地图系统 **MAP-02 + MAP-03 + MAP-04 + MAP-05 + MAP-06 + MAP-07 + MAP-08 + MAP-09** 上线（commit `e781f49`，**核心玩法最高优先级**已完成）
-> 总测试：**1000 / 1000** EditMode PASS · Core 依赖守卫 4 / 4 PASS · 0 新 compile warnings from MAP-02/MAP-03/MAP-04/MAP-05/MAP-06/MAP-07/MAP-08/MAP-09 paths（main 上有 3 个 pre-existing warning，详见 §5.3）
+> 最后更新：2026-07-16 00:35 GMT+8
+> 状态：MVP 完成（Task 01-20）+ M5+ 地图系统 **MAP-02 + MAP-03 + MAP-04 + MAP-05 + MAP-06 + MAP-07 + MAP-08 + MAP-09 + MAP-11a** 上线（commit `d792e29`，**核心玩法最高优先级**已完成）
+> 总测试：**1186 / 1186** EditMode PASS · Core 依赖守卫 4 / 4 PASS · 0 新 compile warnings from MAP-02/MAP-03/MAP-04/MAP-05/MAP-06/MAP-07/MAP-08/MAP-09/MAP-11a paths（main 上有 3 个 pre-existing warning，详见 §5.3）
 > MAP-07 QA Gate：[`Docs/qa-reports/map-07-gate.md`](qa-reports/map-07-gate.md)（Lead consolidated）
 > MAP-03 QA Gate：[`Docs/qa-reports/map-03-gate.md`](qa-reports/map-03-gate.md)（qa consolidated after commit-hygiene fix）
 > MAP-05 QA Gate：[`Docs/qa-reports/map-05-gate.md`](qa-reports/map-05-gate.md)（qa independent verification, 9/9 PASS）
 > MAP-09 QA Gate：[`Docs/qa-reports/map-09-gate.md`](qa-reports/map-09-gate.md)（qa independent verification, 11/11 PASS, MAP-08 零回归）
+> MAP-11a QA Gate：[`Docs/qa-reports/map-11-gate.md`](qa-reports/map-11-gate.md)（qa independent verification, 11/11 PASS, MAP-09 零回归 141/141）
 
 ## 1. 已完成功能
 
@@ -34,6 +35,7 @@
 | **Map (MAP-03)** | **IMapCommand 完整接口（Execute/Undo/Version/CommandId/Dependencies） + MapCommandResult + MapEvent struct（8 种事件 + 稳定排序） + MapCommandExecutor（Run / UndoLast / Version / Dependencies） + 16 个 Map commands + AnchorStateService（7 状态） + MapState.Version 字段** | **2400+** | **✅** |
 | **Map (MAP-05)** | **PathfindingService（A* 算法，N→E→S→W 邻居顺序，Tie-break (F,H,Y,X,Layer)） + MapPassabilityService（7 拒绝原因：BlockedByTile/HeightDelta/Unit/Phase/Region/InsufficientMovement/Pass） + MapMovementProfile（Standard/Flyer/Heavy 工厂）+ MovementRangeService（BFS-based AP 范围）+ MapPath（含 RiskTags）+ 保留 BFSPathfinder 向后兼容** | **900+** | **✅** |
 | **Map (MAP-09)** | **MapRegionDefinition（14 种 RegionKind 工厂）+ MapRegionState（8 字段 + 序列化契约）+ MapRegionStateHasher + MapRegionService（8-state machine + Tick + 4 个 MapEvent）+ MapSpawnPoint + MapSpawnService + 4 个新 IMapCommand（RegisterRegion/UnregisterRegion/TransitionRegionState/PlaceSpawnPoint）+ 非破坏性升级（保留 MAP-08 legacy `Regions` + 新增 `RegionStates`/`SpawnPoints` 集合）** | **1700+** | **✅** |
+| **Map (MAP-11a)** | **CollapseStage（5 阶段：Stable/Anomalous/Fracturing/Collapsing/GateFault）+ TileStability（6 值：Stable/Unstable/Fractured/Collapsing/Collapsed/Reconstructed）+ GlobalCollapseValue + LocalCollapseValue + CollapseValueService（Tick + ApplyLocalDamage + GetHotspots + 5 阶段效果 + MAP-09 联动）+ CollapseWarningService（4 预警等级）+ 3 个新 IMapCommand（ModifyGlobalCollapseValue/CollapseTile/ReconstructTile）+ 4 个新 MapEvent kinds (15-18) + 非破坏性升级（保留 MAP-02 `int GlobalCollapseValue` legacy）** | **1500+** | **✅** |
 
 ### 1.2 Data（9 .cs）
 
@@ -87,11 +89,12 @@
 | **Map/Commands（MAP-03）** | **97** | **Map03_TaskId (17) + MapCommandEvent (14) + MapCommandExecutor (12) + MapCommandIntegration (10) + MapCommandValidation (44)** |
 | **Map/Pathfinding（MAP-05）** | **93** | **PathfindingService (12) + MapPassability (15) + MovementRange (10) + MovementProfile (8) + MapPath (6) + Map05_TaskId (5) + DualBackwardCompat (37 衍生)** |
 | **Map/Regions（MAP-09）** | **141** | **MapRegionService (45) + MapRegionDefinition (33) + SpawnPoint (15) + MapRegionState (13) + RegionEvent (12) + DeploymentValidation (10) + Map09_TaskId (8) + Map09_HashStability (5)** |
+| **Map/Collapse（MAP-11a）** | **186** | **CollapseStage (21) + TileStability (19) + GlobalCollapseValue (24) + LocalCollapseValue (19) + CollapseValueService (27) + CollapseWarningService (24) + ModifyGlobalCVCommand (17) + CollapseTileCommand (13) + ReconstructTileCommand (13) + Map11_TaskId (9)** |
 | UndoIntegrationTests | 8 | 21-B Undo RestoreState 集成 |
 | Phase 19 单元扩展 | 12 | LevelLoopTests 同源增量 |
 | Phase 19 综合 | 17 | 同上组合 |
 
-**总计**：**1000 / 1000 EditMode PASS · 0 failed · 0 skipped**（main HEAD `e781f49`，**MAP-09 + MAP-05 + MAP-03 + MAP-07 + MAP-08 核心玩法已上**）。
+**总计**：**1186 / 1186 EditMode PASS · 0 failed · 0 skipped**（main HEAD `d792e29`，**MAP-11a + MAP-09 + MAP-05 + MAP-03 + MAP-07 + MAP-08 核心玩法已上**）。
 
 qa Gate 独立报告：
 - MAP-02：[`docs/qa-reports/map-02-gate.md`](qa-reports/map-02-gate.md)
@@ -102,6 +105,7 @@ qa Gate 独立报告：
 - MAP-03：[`docs/qa-reports/map-03-gate.md`](qa-reports/map-03-gate.md)（qa consolidated after commit-hygiene fix）
 - MAP-05：[`docs/qa-reports/map-05-gate.md`](qa-reports/map-05-gate.md)（qa independent verification）
 - MAP-09：[`docs/qa-reports/map-09-gate.md`](qa-reports/map-09-gate.md)（qa independent verification, MAP-08 零回归专项）
+- MAP-11a：[`docs/qa-reports/map-11-gate.md`](qa-reports/map-11-gate.md)（qa independent verification, MAP-09 零回归 141/141 专项）
 
 ## 2. 提交链（main）
 
@@ -178,7 +182,7 @@ MVP 后续可选方向（**未经用户批准不得实施**）：
   -logFile -
 ```
 
-预期结果：`result="Passed"`, `total="1000"`, `passed="1000"`, `failed="0"`, `errors="0"`, `warnings="0"`。
+预期结果：`result="Passed"`, `total="1186"`, `passed="1186"`, `failed="0"`, `errors="0"`, `warnings="0"`。
 
 ### 5.2 编译验证
 
