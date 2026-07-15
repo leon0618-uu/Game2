@@ -40,7 +40,7 @@ namespace Starfall.Tests.EditMode.Map.Collapse
             Assert.IsTrue(result.Success);
             var lcv = map.TryGetLocalCV(coord);
             Assert.IsTrue(lcv.HasValue);
-            Assert.AreEqual(80, lcv.Value);
+            Assert.AreEqual(80, lcv.Value.Value);
             Assert.AreEqual(TileStability.Collapsing, lcv.Value.Stability);
         }
 

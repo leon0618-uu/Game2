@@ -70,7 +70,8 @@ namespace Starfall.Core.Map.Collapse
             // 读取当前 LCV
             LocalCollapseValue prevLcv;
             TileStability prevStability;
-            if (mapState.LocalCVsInternal.TryGetValue(Coord, out var existing))
+            bool hadLcv = mapState.LocalCVsInternal.TryGetValue(Coord, out var existing);
+            if (hadLcv)
             {
                 prevLcv = existing;
                 prevStability = existing.Stability;
@@ -90,6 +91,7 @@ namespace Starfall.Core.Map.Collapse
             int newValue = 0;
             var newLcv = new LocalCollapseValue(Coord, newValue, prevLcv.TickAccumulated);
             _previousLcv = prevLcv;
+            _previousLcvExisted = hadLcv;
             _previousStability = prevStability;
             mapState.LocalCVsInternal[Coord] = newLcv;
             _executed = true;
@@ -107,7 +109,7 @@ namespace Starfall.Core.Map.Collapse
             if (mapState == null) throw new ArgumentNullException(nameof(mapState));
             if (!_executed)
                 throw new InvalidOperationException("ReconstructTileCommand.Undo called without prior Execute.");
-            if (_previousLcv.HasValue)
+            if (_previousLcvExisted && _previousLcv.HasValue)
             {
                 mapState.LocalCVsInternal[Coord] = _previousLcv.Value;
             }
@@ -116,6 +118,7 @@ namespace Starfall.Core.Map.Collapse
                 mapState.LocalCVsInternal.Remove(Coord);
             }
             _executed = false;
+            _previousLcvExisted = false;
         }
 
         public int Version => 1;
@@ -124,6 +127,7 @@ namespace Starfall.Core.Map.Collapse
 
         private bool _executed;
         private LocalCollapseValue? _previousLcv;
+        private bool _previousLcvExisted;
         private TileStability _previousStability;
 
         public override string ToString()
