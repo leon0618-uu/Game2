@@ -156,7 +156,7 @@ MVP 后续可选方向（**未经用户批准不得实施**）：
   -logFile -
 ```
 
-预期结果：`result="Passed"`, `total="179"`, `passed="179"`, `failed="0"`, `errors="0"`, `warnings="0"`。
+预期结果：`result="Passed"`, `total="669"`, `passed="669"`, `failed="0"`, `errors="0"`, `warnings="0"`。
 
 ### 5.2 编译验证
 
