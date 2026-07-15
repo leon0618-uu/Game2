@@ -97,7 +97,8 @@ namespace Starfall.Tests.EditMode.Map.Collapse
             //     Stable 阶段不变化也 Emit，因为值变了（0→1），
             //     但阶段没变 = 仍 Emit OnGlobalCVChanged 表示数值变化。
             //     严格语义：值变 = 必有 OnGlobalCVChanged。
-            Assert.Contains(MapEventKind.OnGlobalCVChanged, kinds);
+            Assert.IsTrue(System.Linq.Enumerable.Contains(kinds, MapEventKind.OnGlobalCVChanged),
+                "Stable stage still emits OnGlobalCVChanged when value changes");
         }
 
         // ──────────── 7-9) ApplyLocalDamage ────────────

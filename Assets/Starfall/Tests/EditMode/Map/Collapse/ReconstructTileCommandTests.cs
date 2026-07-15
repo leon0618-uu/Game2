@@ -1,4 +1,5 @@
 using NUnit.Framework;
+using Starfall.Core.Map;
 using Starfall.Core.Map.Collapse;
 using Starfall.Core.Map.Commands;
 using Starfall.Core.Map.Coordinates;
