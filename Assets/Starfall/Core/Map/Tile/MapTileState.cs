@@ -85,6 +85,18 @@ namespace Starfall.Core.Map.Tile
         /// <summary>当前激活的地图效果字符串列表（只读视图；修改需通过 <see cref="AddEffect"/> / <see cref="RemoveEffect"/>）。</summary>
         public IReadOnlyList<string> ActiveMapEffects => _activeEffects;
 
+        /// <summary>
+        /// doc2 MAP-07 当前激活维度（<see cref="DimensionLayer.Reality"/> 默认；
+        /// <see cref="Starfall.Core.Map.Commands.FlipTilePhaseCommand"/> 翻转后变为另一层）。
+        /// <para/>
+        /// **与 <see cref="TileDefinition.PhasePairTileId"/> 的关系**：当某个 tile
+        /// 拥有配对 tile（<c>PhasePairTileId</c> != null），本字段变化时，
+        /// 配对 tile 的 <see cref="ActiveDimension"/> 也应同步翻转（由
+        /// <c>PhasePairLookup</c> + <see cref="Starfall.Core.Map.Commands.FlipTilePhaseCommand"/>
+        /// cascade flip 保证；本类只持有单 tile 状态）。
+        /// </summary>
+        public DimensionLayer ActiveDimension { get; private set; } = DimensionLayer.Reality;
+
         // ──────────── 构造 ────────────
 
         public MapTileState(TileDefinition definition)
@@ -96,6 +108,49 @@ namespace Starfall.Core.Map.Tile
             // 初始 IsPassable = !BlocksMovement（默认地形状态）；
             // Stability 与 OccupyingUnitId 由后续命令 / 服务更新。
             IsPassable = !definition.BlocksMovement;
+            // MAP-07：初始 ActiveDimension = Reality；上层 PhaseFlipStateService
+            // 可在 attach 时遍历旧 dict 把已翻转的 tile 同步设置（向后兼容 MAP-08 stub）。
+            ActiveDimension = DimensionLayer.Reality;
+        }
+
+        // ──────────── MAP-07 ActiveDimension 操作 ────────────
+
+        /// <summary>
+        /// doc2 MAP-07 翻转此 tile 到 <paramref name="target"/> 层。
+        /// <para/>
+        /// **返回**：
+        /// <list type="bullet">
+        /// <item><c>true</c>：成功翻转（<see cref="ActiveDimension"/> 已更新为 <paramref name="target"/>）。</item>
+        /// <item><c>false</c>：未翻转，可能原因 — (a) 已在 <paramref name="target"/> 层；
+        ///       (b) <see cref="Definition"/>.Tags 含 <see cref="TileTags.PhaseLocked"/>。</item>
+        /// </list>
+        /// <para/>
+        /// **不引发异常**：与 doc2 §21 一致，调用方负责根据返回值判定
+        /// <c>"already at target layer"</c> / <c>"phase locked"</c> 等失败原因。
+        /// <para/>
+        /// **不更新配对 tile**：调用方（如
+        /// <c>FlipTilePhaseCommand</c>）负责主动通过
+        /// <c>PhasePairLookup.TryGetPair</c> 找到配对 tile 并 cascade 调用
+        /// 其 <c>TryFlipTo</c>，从而保证双层同步。
+        /// </summary>
+        public bool TryFlipTo(DimensionLayer target)
+        {
+            if (ActiveDimension == target) return false;
+            if ((Definition.Tags & TileTags.PhaseLocked) != 0) return false;
+            ActiveDimension = target;
+            return true;
+        }
+
+        /// <summary>
+        /// doc2 MAP-07 直接设置 <see cref="ActiveDimension"/>（无校验）。
+        /// <para/>
+        /// 仅供 <see cref="Starfall.Core.Map.Commands.PhaseFlipStateService"/> / 测试 fixture 的
+        /// migration path（从旧 _flipped dict 迁移到字段）使用；业务代码应使用
+        /// <see cref="TryFlipTo"/>。
+        /// </summary>
+        public void SetActiveDimensionDirect(DimensionLayer layer)
+        {
+            ActiveDimension = layer;
         }
 
         // ──────────── 派生属性 ────────────

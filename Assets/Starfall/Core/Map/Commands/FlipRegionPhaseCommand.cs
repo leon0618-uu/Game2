@@ -9,13 +9,14 @@ namespace Starfall.Core.Map.Commands
     /// <summary>
     /// doc2 MAP-08 §6.1 区域相位翻转命令。
     /// <para/>
-    /// **区域识别（MAP-08 妥协方案）**：
+    /// **契约**（公开签名不变；MAP-07 重写内部使用 <see cref="MapTileState.ActiveDimension"/>）：
     /// <list type="bullet">
-    /// <item>MAP-09 完整 <see cref="MapRegion"/> 已挂占位结构（<see cref="MapRegion.TileCoords"/>）。</item>
-    /// <item>本命令接受 <paramref name="RegionAnchorTileId"/>，在 <see cref="MapState.Regions"/>
-    ///       内查找包含该 tile 的 region。未找到 → 返回 Fail。</item>
-    /// <item>查找算法：线性扫描 <see cref="MapState.Regions"/>，按 <see cref="MapRegion.RegionId"/>
-    ///       升序，第一个命中即作为目标 region（确定性强）。</item>
+    /// <item>目标：在 <see cref="MapState"/> 上找到含 <see cref="RegionAnchorTileId"/> 的
+    ///       <see cref="MapRegion"/>；校验 region 内每 cell 的 PhaseLocked /
+    ///       PhaseFlippable / NotAtTargetLayer 条件；全部通过则对每个 cell
+    ///       调用 <see cref="PhaseFlipStateService.SetActiveDimension"/>。</item>
+    /// <item>**MAP-07 路径**：写操作直接修改 <see cref="MapTileState.ActiveDimension"/>
+    ///       字段，替代旧 <c>PhaseFlipState.SetFlippedLayer</c> dict。</item>
     /// </list>
     /// <para/>
     /// **失败条件**（任一即整体 Fail，无副作用）：
@@ -80,10 +81,7 @@ namespace Starfall.Core.Map.Commands
             if (region.TileCoords.Count == 0)
                 return MapCommandResult.Fail("empty region");
 
-            var phaseState = PhaseFlipStateService.GetOrAttach(map);
-
             // 2) 预检：region 内所有 cell 必须通过 PhaseLocked / PhaseFlippable / NotYetTargetLayer 校验。
-            //    全部通过才执行写。任一失败 → 整命令 Fail。
             foreach (var coord in region.TileCoords)
             {
                 if (!registry.TryGetByCoord(coord, out var def))
@@ -95,9 +93,9 @@ namespace Starfall.Core.Map.Commands
                 if ((def.Tags & TileTags.PhaseFlippable) == 0)
                     return MapCommandResult.Fail("not phase flippable (in region)");
 
-                DimensionLayer currentLayer = phaseState.TryGetFlippedLayer(def.TileId, out var cur)
-                    ? cur
-                    : map.ActiveLayer;
+                // MAP-07：通过 per-tile ActiveDimension 字段读当前层（fallback 字典）。
+                DimensionLayer currentLayer = map.ActiveLayer;
+                PhaseFlipStateService.TryGetActiveDimension(map, def.TileId, out currentLayer);
 
                 if (currentLayer == TargetLayer)
                     return MapCommandResult.Fail("already at target layer (in region)");
@@ -108,7 +106,7 @@ namespace Starfall.Core.Map.Commands
             foreach (var coord in region.TileCoords)
             {
                 if (!registry.TryGetByCoord(coord, out var def)) continue;
-                phaseState.SetFlippedLayer(def.TileId, TargetLayer);
+                PhaseFlipStateService.SetActiveDimension(map, def.TileId, TargetLayer);
                 affected.Add(def.Coord);
             }
             affected.Sort();

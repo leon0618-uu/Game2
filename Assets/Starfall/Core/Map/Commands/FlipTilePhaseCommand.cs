@@ -3,34 +3,29 @@ using System.Collections.Generic;
 using Starfall.Core.Map.Coordinates;
 using Starfall.Core.Map.State;
 using Starfall.Core.Map.Tile;
+using Starfall.Core.Map.Tile.PhasePair;
 
 namespace Starfall.Core.Map.Commands
 {
     /// <summary>
     /// doc2 MAP-08 §6.1 单 tile 相位翻转命令（MAP-08 核心玩法）。
     /// <para/>
-    /// **契约**：
+    /// **契约**（公开签名不变；MAP-07 重写内部使用 <see cref="MapTileState.ActiveDimension"/> +
+    /// <see cref="PhasePairLookup"/>）：
     /// <list type="bullet">
     /// <item>目标：在 <see cref="MapState"/> 上找到 <see cref="TileDefinition"/>，
     ///       校验 PhaseFlippable / !PhaseLocked 标签，把该 tile 的"激活层"
-    ///       在 <see cref="MapState.ActiveLayer"/> 之外移到 <see cref="TargetLayer"/>。
-    ///       本轮（MAP-08）"激活层"以一个 MAP-07 引入的 per-tile 字段表达：
-    ///       借助 <see cref="MapTileState"/> 的额外字段 <c>ActiveDimension</c>。但
-    ///       <see cref="MapTileState"/> 在 MAP-04 已冻结，故本轮引入最小副作用：
-    ///       通过 <see cref="MapState.AddTile"/> 路径嵌入 <see cref="MapState"/> 的
-    ///       <c>PhaseFlippedTiles</c> 字典（MAP-03 已冻结的容器不可能改）。
-    ///       因此本命令采用「MAP-07 stub」语义：
-    ///       **成功 = 校验通过并把 tileId 记录到 <see cref="MapState.ActiveLayer"/>
-    ///       的临时 side-effect**。
-    ///       完整 per-tile ActiveDimension 状态留待 MAP-07 接入后整体刷新。</item>
+    ///       通过 <see cref="PhaseFlipStateService.SetActiveDimension"/>
+    ///       写到 <see cref="MapTileState.ActiveDimension"/> 字段。</item>
+    /// <item>**双层配对 cascade**：若该 tile 通过 <see cref="PhasePairLookup.TryGetPair"/>
+    ///       找到配对 tile 且配对 tile 也通过 PhaseFlipStateService，cascade 调用
+    ///       <see cref="PhaseFlipStateService.SetActiveDimension"/> 同步翻转配对。</item>
     /// </list>
     /// <para/>
-    /// **MAP-08 妥协方案**：本轮使用 <see cref="MapState"/> 上一个临时 side-effect
-    /// 字典（通过静态服务 + 字典 attach 模式，类似 <see cref="TileOccupancyService"/>），
-    /// 完整 per-tile ActiveDimension 字段由 MAP-07 引入后再迁移。本命令的
-    /// "ActiveDimension" 状态表达为：成功翻转后该 tile 可被其它命令识别为
-    /// <see cref="TargetLayer"/> 层上的激活 tile —— 这对 <see cref="FallResolutionService"/>
-    /// 决定 "能否落" 已经足够（不再依赖 <see cref="MapState.ActiveLayer"/> 单值）。
+    /// **MAP-07 升级**：命令内部从旧的 `PhaseFlipState.SetFlippedLayer` 字典
+    /// 改为 <see cref="PhaseFlipStateService.SetActiveDimension"/>（直接修改
+    /// <see cref="MapTileState.ActiveDimension"/> 字段）。这使 flip 状态由
+    /// tile 自带 — 配合 <see cref="MapStateCloner"/> 深拷贝可完美 rehydrate。
     /// <para/>
     /// **失败条件**（任一即返回 <see cref="MapCommandResult.Fail"/>）：
     /// <list type="bullet">
@@ -38,12 +33,12 @@ namespace Starfall.Core.Map.Commands
     /// <item>该 tile 上 <c>PhaseLocked</c> 标签生效 → <c>"phase locked"</c>。</item>
     /// <item>该 tile 上无 <c>PhaseFlippable</c> 标签 → <c>"not phase flippable"</c>。</item>
     /// <item>该 tile 当前层已是 <see cref="TargetLayer"/> → <c>"already at target layer"</c>。</item>
+    /// <item>未 attach runtime states（MAP-07 写前置条件）→ <c>"no runtime states attached"</c>。</item>
     /// </list>
     /// <para/>
-    /// **影响面**：成功 → AffectedTiles = [tile.Coord]（按 CompareTo 升序，单元素已是序）。
+    /// **影响面**：成功 → AffectedTiles = [tile.Coord, ...配对 tile Coord]（按 CompareTo 升序）。
     /// <para/>
-    /// **不发业务事件**：map commands 不发 <see cref="Starfall.Core.Command.BattleEvent"/>，
-    /// 上层 <c>BattleRunner</c> 在成功执行后注入事件流。
+    /// **不发业务事件**：map commands 不发 <see cref="Starfall.Core.Command.BattleEvent"/>。
     /// </summary>
     public sealed class FlipTilePhaseCommand : IMapCommand
     {
@@ -65,22 +60,11 @@ namespace Starfall.Core.Map.Commands
         /// <summary>
         /// 在 <paramref name="map"/> 上执行相位翻转。
         /// </summary>
-        /// <remarks>
-        /// **实现细节**：
-        /// <list type="bullet">
-        /// <item>从 <see cref="PhaseFlipStateService"/>（attach 模式）取出该 map 的
-        ///       per-tile 当前激活层。首次访问的 tile = <see cref="MapState.ActiveLayer"/>。</item>
-        /// <item>校验 PhaseLocked / PhaseFlippable / 当前层。</item>
-        /// <item>通过：把该 tile 写入 phase flip 状态字典 + 返回 <see cref="MapCommandResult.Ok"/>。</item>
-        /// </list>
-        /// </remarks>
         public MapCommandResult Execute(MapState map)
         {
             if (map == null) throw new ArgumentNullException(nameof(map));
 
-            var phaseState = PhaseFlipStateService.GetOrAttach(map);
             var registry = PhaseFlipStateService.GetAttachedRegistry(map);
-
             if (registry == null)
             {
                 return MapCommandResult.Fail("no tile registry attached");
@@ -102,19 +86,37 @@ namespace Starfall.Core.Map.Commands
                 return MapCommandResult.Fail("not phase flippable");
             }
 
-            DimensionLayer currentLayer = phaseState.TryGetFlippedLayer(TileId, out var cur)
-                ? cur
-                : map.ActiveLayer;
+            // MAP-07：用 per-tile 字段读取当前层（fallback 字典 — 兼容 MAP-08 测试）。
+            DimensionLayer currentLayer = map.ActiveLayer;
+            PhaseFlipStateService.TryGetActiveDimension(map, TileId, out currentLayer);
 
             if (currentLayer == TargetLayer)
             {
                 return MapCommandResult.Fail("already at target layer");
             }
 
-            // 通过校验 → 写翻转状态。
-            phaseState.SetFlippedLayer(TileId, TargetLayer);
+            // 通过校验 → 写 ActivationDimension 字段（fallback 字典）。
+            PhaseFlipStateService.SetActiveDimension(map, TileId, TargetLayer);
 
             var affected = new List<GridCoord>(1) { def.Coord };
+
+            // MAP-07 cascade：若存在配对 tile 且配对 tile 也通过 PhaseFlipStateService，
+            // 同步 flip 配对 tile 到 TargetLayer。
+            if (PhasePairLookup.TryGetPair(map, TileId, out var pairTileId))
+            {
+                if (registry.TryGetById(pairTileId, out var pairDef))
+                {
+                    DimensionLayer pairLayer = map.ActiveLayer;
+                    PhaseFlipStateService.TryGetActiveDimension(map, pairTileId, out pairLayer);
+                    if (pairLayer != TargetLayer)
+                    {
+                        PhaseFlipStateService.SetActiveDimension(map, pairTileId, TargetLayer);
+                        affected.Add(pairDef.Coord);
+                    }
+                }
+            }
+
+            affected.Sort();
             return MapCommandResult.Ok(affected);
         }
 
