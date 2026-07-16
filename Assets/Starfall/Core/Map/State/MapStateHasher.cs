@@ -5,6 +5,7 @@ using Starfall.Core.Anchor;
 using Starfall.Core.Map.Anchor;
 using Starfall.Core.Map.Collapse;
 using Starfall.Core.Map.Coordinates;
+using Starfall.Core.Map.Environment;
 
 namespace Starfall.Core.Map.State
 {
@@ -47,6 +48,9 @@ namespace Starfall.Core.Map.State
     /// <item><c>LocalCVs</c> (tag=0x37, collection，按 GridCoord.CompareTo 排序；MAP-11a 增量)</item>
     /// <item><c>AnchorLinks</c> (tag=0x38, collection，按 AnchorLinkId 升序；MAP-12 增量。
     ///       每 link 内部字节流由 <see cref="AnchorLinkHasher.CalculateDeterministicHash"/> 计算后以 8 字节 LE 混合。</item>
+    /// <item><c>ActiveSchedule</c> (tag=0x3B, struct + children; MAP-11b 增量)</item>
+    /// <item><c>EnvironmentTickAccumulator</c> (tag=0x3C, int; MAP-11b 增量)</item>
+    /// <item><c>PendingEvents</c> (tag=0x3D, collection; MAP-11b 增量)</item>
     /// </list>
     /// </summary>
     public static class MapStateHasher
@@ -100,6 +104,27 @@ namespace Starfall.Core.Map.State
         public const byte TagLocalCVs = 0x37;
         // MAP-12 新增：AnchorLinks 集合段。
         public const byte TagAnchorLinks = 0x38;
+
+        // MAP-11b 新增：ActiveSchedule + EnvironmentTickAccumulator + PendingEvents
+        public const byte TagActiveSchedule = 0x3B;  // MAP-11b (shifted from 0x38 to avoid MAP-12 TagAnchorLinks collision)
+        public const byte TagEnvironmentTickAccumulator = 0x3C;  // MAP-11b (shifted from 0x39)
+        public const byte TagPendingEvents = 0x3D;  // MAP-11b (shifted from 0x3A)
+
+        // ActiveSchedule 子标签
+        public const byte TagScheduleId = 0xC0;
+        public const byte TagScheduleCreatedTick = 0xC1;
+        public const byte TagScheduleEventCount = 0xC2;
+
+        // MapEnvironmentEvent 子标签
+        public const byte TagEvKind = 0xC3;
+        public const byte TagEvTriggerTick = 0xC4;
+        public const byte TagEvMagnitude = 0xC5;
+        public const byte TagEvCoordsCount = 0xC6;
+        public const byte TagEvCoordX = 0xC7;
+        public const byte TagEvCoordY = 0xC8;
+        public const byte TagEvCoordLayer = 0xC9;
+        public const byte TagEvTagsCount = 0xCA;
+        public const byte TagEvTagString = 0xCB;
 
         // RegionState 子标签（与 MapRegionStateHasher 同协议但 tag 偏移以避免冲突）
         public const byte TagRStateId = 0x90;
@@ -336,6 +361,79 @@ namespace Starfall.Core.Map.State
             {
                 ulong linkHash = AnchorLinkHasher.CalculateDeterministicHash(link);
                 h = MixUInt64(h, linkHash);
+            // ──────────── MAP-11b：ActiveSchedule ────────────
+            // 写入 ScheduleId + CreatedTick + Event count + 每个 event 完整内容（按 events 顺序，
+            // 不重排，因为 MapEnvironmentSchedule 已经按 phase 排好序）。
+            var schedule = state.ActiveSchedule;
+            h = MixByte(h, TagActiveSchedule);
+            h = MixInt32(h, TagScheduleId, schedule.ScheduleId);
+            h = MixInt32(h, TagScheduleCreatedTick, schedule.CreatedTick);
+            h = MixInt32(h, TagScheduleEventCount, schedule.Count);
+            for (int i = 0; i < schedule.Count; i++)
+            {
+                var ev = schedule.Events[i];
+                h = MixInt32(h, TagEvKind, (int)ev.Kind);
+                h = MixInt32(h, TagEvTriggerTick, ev.TriggerTick);
+                h = MixInt32(h, TagEvMagnitude, ev.Magnitude);
+                h = MixInt32(h, TagEvCoordsCount, ev.AffectedCoords?.Count ?? 0);
+                if (ev.AffectedCoords != null)
+                {
+                    // AffectedCoords 已经按 CompareTo 排好序，所以直接遍历即可。
+                    for (int c = 0; c < ev.AffectedCoords.Count; c++)
+                    {
+                        var coord = ev.AffectedCoords[c];
+                        h = MixInt32(h, TagEvCoordX, coord.X);
+                        h = MixInt32(h, TagEvCoordY, coord.Y);
+                        h = MixInt32(h, TagEvCoordLayer, (int)coord.Layer);
+                    }
+                }
+                h = MixInt32(h, TagEvTagsCount, ev.Tags?.Count ?? 0);
+                if (ev.Tags != null)
+                {
+                    // Tags 已经按 Ordinal 排好序，直接遍历。
+                    for (int t = 0; t < ev.Tags.Count; t++)
+                    {
+                        h = MixString(h, TagEvTagString, ev.Tags[t]);
+                    }
+                }
+            }
+
+            // ──────────── MAP-11b：EnvironmentTickAccumulator ────────────
+            h = MixInt32(h, TagEnvironmentTickAccumulator, state.EnvironmentTickAccumulator);
+
+            // ──────────── MAP-11b：PendingEvents（按插入顺序，不重排）────────────
+            // PendingEvents 在 MapState 是按插入顺序追加；写哈希也按插入顺序，
+            // 以保留 Detach/Inject 行为。
+            h = MixByte(h, TagPendingEvents);
+            h = MixInt32(h, state.PendingEvents?.Count ?? 0);
+            if (state.PendingEvents != null)
+            {
+                for (int i = 0; i < state.PendingEvents.Count; i++)
+                {
+                    var ev = state.PendingEvents[i];
+                    h = MixInt32(h, TagEvKind, (int)ev.Kind);
+                    h = MixInt32(h, TagEvTriggerTick, ev.TriggerTick);
+                    h = MixInt32(h, TagEvMagnitude, ev.Magnitude);
+                    h = MixInt32(h, TagEvCoordsCount, ev.AffectedCoords?.Count ?? 0);
+                    if (ev.AffectedCoords != null)
+                    {
+                        for (int c = 0; c < ev.AffectedCoords.Count; c++)
+                        {
+                            var coord = ev.AffectedCoords[c];
+                            h = MixInt32(h, TagEvCoordX, coord.X);
+                            h = MixInt32(h, TagEvCoordY, coord.Y);
+                            h = MixInt32(h, TagEvCoordLayer, (int)coord.Layer);
+                        }
+                    }
+                    h = MixInt32(h, TagEvTagsCount, ev.Tags?.Count ?? 0);
+                    if (ev.Tags != null)
+                    {
+                        for (int t = 0; t < ev.Tags.Count; t++)
+                        {
+                            h = MixString(h, TagEvTagString, ev.Tags[t]);
+                        }
+                    }
+                }
             }
 
             return h;

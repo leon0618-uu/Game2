@@ -4,6 +4,7 @@ using Starfall.Core.Anchor;
 using Starfall.Core.Map.Anchor;
 using Starfall.Core.Map.Collapse;
 using Starfall.Core.Map.Coordinates;
+using Starfall.Core.Map.Environment;
 using Starfall.Core.Map.Regions;
 
 namespace Starfall.Core.Map.State
@@ -14,7 +15,7 @@ namespace Starfall.Core.Map.State
     /// <para/>
     /// 持有：
     /// <list type="bullet">
-    /// <item>不可变 <see cref="MapDefinition"/>（创建后不修改 Definition 字段）。</item>
+    /// <item>不可变 <see cref="Definition"/>（创建后不修改 Definition 字段）。</item>
     /// <item>运行时整数状态：<see cref="Version"/>、<see cref="ActiveLayer"/>、<see cref="GlobalCollapseValue"/>。</item>
     /// <item>6 个集合（Tiles / Anchors / Regions / MapObjects / RegionStates / SpawnPoints），对外暴露
     ///       <see cref="IReadOnlyList{T}"/>；内部使用 <see cref="List{T}"/>，由 <see cref="MapStateCloner"/>
@@ -34,6 +35,14 @@ namespace Starfall.Core.Map.State
     /// 它服务于 MAP-03/08 的 <c>FlipRegionPhaseCommand</c> / <c>CreateConstellationAreaCommand</c>
     /// 等通过 RegionId + TileCoords 字典式访问的路径。新旧 region 字段共存，由不同命令路径访问，
     /// 互不干扰。MAP-09 阶段不删除 legacy 字段（[MAP_SYSTEM_AUDIT §3.3] 兼容性约束）。
+    ///
+    /// <para/>
+    /// 本轮（MAP-11b）在 MAP-11a 基础上**新增**：
+    /// <list type="bullet">
+    /// <item><see cref="ActiveSchedule"/>：当前激活的 <see cref="MapEnvironmentSchedule"/>（只读 struct）。</item>
+    /// <item><see cref="EnvironmentTickAccumulator"/>：Schedule 推进 tick 计数。</item>
+    /// <item><see cref="PendingEvents"/>：待触发的延迟事件（Deferred 队列）。</item>
+    /// </list>
     ///
     /// <para/>
     /// 本轮（MAP-02）只建容器，不接任何 <c>IMapCommand</c>（MAP-03）。后续
@@ -84,6 +93,37 @@ namespace Starfall.Core.Map.State
         /// 默认 = false（拒绝所有调试写入）。该开关不进入 <see cref="PostStateHash"/>。
         /// </summary>
         public bool DevTestModeEnabled { get; private set; }
+
+        // ──────────── MAP-11b 新增字段 ────────────
+
+        /// <summary>
+        /// doc2 MAP-11b 当前激活的 <see cref="MapEnvironmentSchedule"/>。
+        /// <para/>
+        /// 默认 = <see cref="MapEnvironmentSchedule.Empty"/>（空 schedule）。
+        /// 由 <see cref="Starfall.Core.Map.Commands.ScheduleEnvironmentCommand"/> /
+        /// <see cref="Starfall.Core.Map.Commands.InjectEnvironmentEventCommand"/> 修改。
+        /// </summary>
+        public MapEnvironmentSchedule ActiveSchedule { get; set; }
+
+        /// <summary>
+        /// doc2 MAP-11b EnvironmentSchedule tick 累积（仅递增；不进入 <see cref="PostStateHash"/> 之外）。
+        /// <para/>
+        /// 每 <see cref="EnvironmentPhaseResolver.ExecuteAll"/> 调用一次则 +1（也可被
+        /// <see cref="Starfall.Core.Map.Commands.TickEnvironmentCommand"/> 按 tickDelta 自增）。
+        /// 默认 = 0。
+        /// </summary>
+        public int EnvironmentTickAccumulator { get; set; }
+
+        // 内部可变列表：PendingEvents 由 AddPendingEvent 维护；外部仅读访问。
+        internal readonly List<MapEnvironmentEvent> PendingEventsInternal;
+
+        /// <summary>
+        /// doc2 MAP-11b 待触发的延迟事件（<see cref="EnvironmentPhaseIndex.DeferredTriggers"/> 阶段累积）。
+        /// <para/>
+        /// 外部读取者得到 <see cref="IReadOnlyList{T}"/>；写入由 <see cref="AddPendingEvent"/> 统一入口。
+        /// 列表元素按插入顺序追加；删除走 <see cref="RemovePendingEvent"/>。
+        /// </summary>
+        public IReadOnlyList<MapEnvironmentEvent> PendingEvents => PendingEventsInternal;
 
         private Dictionary<string, string> _debugValuesInternal;
 
@@ -143,6 +183,10 @@ namespace Starfall.Core.Map.State
             SpawnPointsInternal = new List<MapSpawnPoint>();
             LocalCVsInternal = new Dictionary<GridCoord, LocalCollapseValue>();
             AnchorLinksInternal = new List<AnchorLink>();
+            // MAP-11b：ActiveSchedule 默认 Empty，Tick 累积 = 0，PendingEvents 列表空
+            ActiveSchedule = MapEnvironmentSchedule.Empty(createdTick: 0);
+            EnvironmentTickAccumulator = 0;
+            PendingEventsInternal = new List<MapEnvironmentEvent>();
         }
 
         // ──────────── 集合修改入口（MAP-02 阶段仅供 Cloner / Test 使用）────────────
@@ -378,6 +422,33 @@ namespace Starfall.Core.Map.State
                 sorted.Sort((a, b) => string.CompareOrdinal(a.Id.Value, b.Id.Value));
                 return sorted;
             }
+        // ──────────── MAP-11b 新增入口（ActiveSchedule + PendingEvents）────────────
+
+        /// <summary>设置当前激活的 <see cref="MapEnvironmentSchedule"/>。</summary>
+        public void SetActiveSchedule(MapEnvironmentSchedule schedule)
+        {
+            ActiveSchedule = schedule;
+        }
+
+        /// <summary>添加一个 <see cref="MapEnvironmentEvent"/> 到 <see cref="PendingEvents"/>。</summary>
+        public void AddPendingEvent(MapEnvironmentEvent ev)
+        {
+            if (ev == null) throw new ArgumentNullException(nameof(ev));
+            PendingEventsInternal.Add(ev);
+        }
+
+        /// <summary>按索引移除一个 <see cref="MapEnvironmentEvent"/>。</summary>
+        public bool RemovePendingEventAt(int index)
+        {
+            if (index < 0 || index >= PendingEventsInternal.Count) return false;
+            PendingEventsInternal.RemoveAt(index);
+            return true;
+        }
+
+        /// <summary>清空 <see cref="PendingEvents"/>。</summary>
+        public void ClearPendingEvents()
+        {
+            PendingEventsInternal.Clear();
         }
 
         // ──────────── 确定性哈希（按需计算）────────────
@@ -390,5 +461,6 @@ namespace Starfall.Core.Map.State
 
         public override string ToString()
             => $"MapState(Def={Definition}, Ver={Version}, Layer={ActiveLayer}, CV={GlobalCollapseValue}, Stage={CurrentStage}, Tiles={TilesInternal.Count}, Anchors={AnchorsInternal.Count}, Regions={RegionsInternal.Count}, Objects={MapObjectsInternal.Count}, RegionStates={RegionStatesInternal.Count}, SpawnPoints={SpawnPointsInternal.Count}, LocalCVs={LocalCVsInternal.Count}, AnchorLinks={AnchorLinksInternal.Count})";
+            => $"MapState(Def={Definition}, Ver={Version}, Layer={ActiveLayer}, CV={GlobalCollapseValue}, Stage={CurrentStage}, Tiles={TilesInternal.Count}, Anchors={AnchorsInternal.Count}, Regions={RegionsInternal.Count}, Objects={MapObjectsInternal.Count}, RegionStates={RegionStatesInternal.Count}, SpawnPoints={SpawnPointsInternal.Count}, LocalCVs={LocalCVsInternal.Count}, ActiveScheduleId={ActiveSchedule.ScheduleId}, EnvTick={EnvironmentTickAccumulator}, Pending={PendingEventsInternal.Count})";
     }
 }
