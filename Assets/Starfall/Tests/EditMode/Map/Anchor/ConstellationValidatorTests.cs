@@ -106,19 +106,18 @@ namespace Starfall.Tests.EditMode.Map.Anchor
         }
 
         [Test]
-        public void IsSelfIntersecting_StarShape_True()
+        public void IsSelfIntersecting_SixVertexFigure8_True()
         {
-            // 8 顶点星形：每 2 个相邻顶点形成一条外凸边，但内部存在交叉
+            // 6 顶点自相交多边形：边 (0,0)-(4,4) 与 (4,0)-(0,4) 在 (2,2) 相交
+            // 其余 4 条边仅作为循环连贯存在。
             var v = new[]
             {
-                new ConstellationVertex(0, 4, DimensionLayer.Reality),    // top
-                new ConstellationVertex(1, 1, DimensionLayer.Reality),    // inner-left
-                new ConstellationVertex(4, 0, DimensionLayer.Reality),    // right
-                new ConstellationVertex(1, -1, DimensionLayer.Reality),   // inner-right
-                new ConstellationVertex(0, -4, DimensionLayer.Reality),   // bottom
-                new ConstellationVertex(-1, -1, DimensionLayer.Reality),  // inner-bottom
-                new ConstellationVertex(-4, 0, DimensionLayer.Reality),   // left
-                new ConstellationVertex(-1, 1, DimensionLayer.Reality),   // inner-top
+                new ConstellationVertex(0, 0, DimensionLayer.Reality),
+                new ConstellationVertex(4, 4, DimensionLayer.Reality),
+                new ConstellationVertex(8, 0, DimensionLayer.Reality),
+                new ConstellationVertex(8, 4, DimensionLayer.Reality),
+                new ConstellationVertex(4, 0, DimensionLayer.Reality),
+                new ConstellationVertex(0, 4, DimensionLayer.Reality),
             };
             Assert.IsTrue(ConstellationValidator.IsSelfIntersecting(v));
         }
@@ -128,49 +127,58 @@ namespace Starfall.Tests.EditMode.Map.Anchor
         [Test]
         public void NormalizeVertices_YFirst()
         {
+            // 输入顺序：(5,5), (1,1), (3,1)
+            // Y→X 最小的顶点 = (1,1)，以其为起点旋转（保持 cyclic）。
+            // 原始 cyclic: (5,5) → (1,1) → (3,1)
+            // 旋转后起点为 (1,1): (1,1) → (3,1) → (5,5)
             var v = new[]
             {
                 new ConstellationVertex(5, 5, DimensionLayer.Reality),
                 new ConstellationVertex(1, 1, DimensionLayer.Reality),
                 new ConstellationVertex(3, 1, DimensionLayer.Reality),
             };
-            var sorted = ConstellationValidator.NormalizeVertices(v);
-            Assert.AreEqual(1, sorted[0].Coord.Y);
-            Assert.AreEqual(1, sorted[1].Coord.Y); // Y 同 → 按 X
-            Assert.AreEqual(1, sorted[1].Coord.X);
-            Assert.AreEqual(3, sorted[1].Coord.X == 3 ? 3 : 0); // 此断言为冗余，下面补强
-            // 严格断言：sorted = [(1,1), (3,1), (5,5)]
-            Assert.AreEqual(1, sorted[0].Coord.X);
-            Assert.AreEqual(3, sorted[1].Coord.X);
-            Assert.AreEqual(5, sorted[2].Coord.X);
+            var normalized = ConstellationValidator.NormalizeVertices(v);
+            Assert.AreEqual(1, normalized[0].Coord.Y);
+            Assert.AreEqual(1, normalized[0].Coord.X);
+            // 后两个保持 cyclic 顺序
+            Assert.AreEqual(1, normalized[1].Coord.Y);
+            Assert.AreEqual(3, normalized[1].Coord.X);
+            Assert.AreEqual(5, normalized[2].Coord.Y);
+            Assert.AreEqual(5, normalized[2].Coord.X);
         }
 
         [Test]
         public void NormalizeVertices_XSecond()
         {
+            // 同 Y，按 X 找最小起点
+            // 输入 (5,0), (1,0), (3,0) cyclic = (5,0) → (1,0) → (3,0)
+            // 旋转后：(1,0) → (3,0) → (5,0)
             var v = new[]
             {
                 new ConstellationVertex(5, 0, DimensionLayer.Reality),
                 new ConstellationVertex(1, 0, DimensionLayer.Reality),
                 new ConstellationVertex(3, 0, DimensionLayer.Reality),
             };
-            var sorted = ConstellationValidator.NormalizeVertices(v);
-            Assert.AreEqual(1, sorted[0].Coord.X);
-            Assert.AreEqual(3, sorted[1].Coord.X);
-            Assert.AreEqual(5, sorted[2].Coord.X);
+            var normalized = ConstellationValidator.NormalizeVertices(v);
+            Assert.AreEqual(1, normalized[0].Coord.X);
+            Assert.AreEqual(3, normalized[1].Coord.X);
+            Assert.AreEqual(5, normalized[2].Coord.X);
         }
 
         [Test]
         public void NormalizeVertices_LayerThird()
         {
+            // (0,0,Reality) 和 (0,0,Astral)，Y/X 同，Layer 决胜。
+            // 输入 cyclic: (Astral) → (Reality)
+            // 旋转后：(Reality) → (Astral)
             var v = new[]
             {
                 new ConstellationVertex(0, 0, DimensionLayer.Astral),
                 new ConstellationVertex(0, 0, DimensionLayer.Reality),
             };
-            var sorted = ConstellationValidator.NormalizeVertices(v);
-            Assert.AreEqual(DimensionLayer.Reality, sorted[0].Coord.Layer);
-            Assert.AreEqual(DimensionLayer.Astral, sorted[1].Coord.Layer);
+            var normalized = ConstellationValidator.NormalizeVertices(v);
+            Assert.AreEqual(DimensionLayer.Reality, normalized[0].Coord.Layer);
+            Assert.AreEqual(DimensionLayer.Astral, normalized[1].Coord.Layer);
         }
 
         [Test]

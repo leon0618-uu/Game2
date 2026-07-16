@@ -103,7 +103,7 @@ namespace Starfall.Tests.EditMode.Map.Commands
             RegisterLink("L1");
             int v0 = _map.Version;
             var cmd = new UnregisterAnchorLinkCommand(new AnchorLinkId("L1"));
-            var r = cmd.Execute(_map);
+            var r = _exec.Run(cmd, _map);
             Assert.IsTrue(r.Success);
             Assert.AreEqual(v0 + 1, _map.Version);
         }

@@ -162,7 +162,7 @@ namespace Starfall.Tests.EditMode.Map.Commands
             int v0 = _map.Version;
             var cmd = new TransitionAnchorLinkStateCommand(
                 new AnchorLinkId("L1"), AnchorZoneState.PlayerControlled, 1);
-            var r = cmd.Execute(_map);
+            var r = _exec.Run(cmd, _map);
             Assert.IsTrue(r.Success);
             Assert.AreEqual(v0 + 1, _map.Version);
         }

@@ -75,13 +75,33 @@ namespace Starfall.Core.Map.Anchor
             return false;
         }
 
-        /// <summary>Y→X→Layer 排序（保持循环顺序 — 即首元素为最小顶点）。</summary>
+        /// <summary>
+        /// **保持循环顺序**的规范化：以 Y→X→Layer 最小的顶点为起点旋转顶点列表。
+        /// 这样既保证规范化（输入任何旋转 / 起始点得到相同输出），
+        /// 又保留多边形的拓扑（不自相交、不破坏 Contains）。
+        /// </summary>
         public static List<ConstellationVertex> NormalizeVertices(IReadOnlyList<ConstellationVertex> vertices)
         {
             if (vertices == null) return new List<ConstellationVertex>();
-            var sorted = new List<ConstellationVertex>(vertices);
-            sorted.Sort(); // ConstellationVertex.CompareTo: Y→X→Layer
-            return sorted;
+            if (vertices.Count == 0) return new List<ConstellationVertex>();
+
+            // 1) 找 Y→X→Layer 最小的顶点索引
+            int minIdx = 0;
+            for (int i = 1; i < vertices.Count; i++)
+            {
+                if (vertices[i].CompareTo(vertices[minIdx]) < 0)
+                {
+                    minIdx = i;
+                }
+            }
+
+            // 2) 以 minIdx 为起点旋转（保持循环顺序）
+            var rotated = new List<ConstellationVertex>(vertices.Count);
+            for (int i = 0; i < vertices.Count; i++)
+            {
+                rotated.Add(vertices[(minIdx + i) % vertices.Count]);
+            }
+            return rotated;
         }
 
         /// <summary>完整校验；返回首个错误。</summary>

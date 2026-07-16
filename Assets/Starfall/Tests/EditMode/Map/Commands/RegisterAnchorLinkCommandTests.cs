@@ -63,7 +63,8 @@ namespace Starfall.Tests.EditMode.Map.Commands
         {
             int v0 = _map.Version;
             var cmd = new RegisterAnchorLinkCommand(MakeLink("L1"));
-            var r = cmd.Execute(_map);
+            // 通过 executor 让 MapState.Version 自增
+            var r = _exec.Run(cmd, _map);
             Assert.IsTrue(r.Success);
             Assert.AreEqual(v0 + 1, _map.Version);
             Assert.AreEqual(v0 + 1, r.NewVersion);

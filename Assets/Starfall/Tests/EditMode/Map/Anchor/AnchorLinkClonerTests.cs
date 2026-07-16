@@ -27,7 +27,7 @@ namespace Starfall.Tests.EditMode.Map.Anchor
                         new ConstellationVertex(4, 0, DimensionLayer.Reality),
                         new ConstellationVertex(0, 4, DimensionLayer.Reality),
                     }),
-                initialState: AnchorZoneState.Inactive,
+                initialState: state,
                 initialTick: tick,
                 initialPostStateHash: hash)
             { /* CurrentState 由构造保证 = initialState */ };

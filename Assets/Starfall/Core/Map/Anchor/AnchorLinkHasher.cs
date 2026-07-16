@@ -21,9 +21,14 @@ namespace Starfall.Core.Map.Anchor
     /// <item>MapStateHasher 顶层使用 <c>0x38</c>（TagAnchorLinks）作为集合段标识。</item>
     /// </list>
     /// <para/>
-    /// **状态参与哈希**：<see cref="AnchorLink.CurrentState"/>、<see cref="AnchorLink.StateTick"/>、
-    /// <see cref="AnchorLink.PostStateHash"/> 都参与哈希 ——
+    /// **状态参与哈希**：<see cref="AnchorLink.CurrentState"/>、<see cref="AnchorLink.StateTick"/>
+    /// 都参与哈希 ——
     /// 因为状态机变化会改变逻辑结果，Replay 必须能区分。
+    /// <para/>
+    /// **不参与 <see cref="AnchorLink.PostStateHash"/>**：PostStateHash 是 <see cref="AnchorLink"/>
+    /// 与 <see cref="MapState"/> 之间的循环引用（PostStateHash = MapState 的 hash at the time
+    /// of transition）—— 如果纳入 AnchorLink hash，会导致 MapState hash 依赖自身。
+    /// PostStateHash 是 <strong>只供业务查询</strong>的缓存字段，不进入本类的哈希范围。
     /// <para/>
     /// **null 安全**：null 输入返回 FNV-1a offset basis（与 MapStateHasher 同语义）。
     /// </summary>
@@ -49,8 +54,8 @@ namespace Starfall.Core.Map.Anchor
             h = MixInt32(h, (int)link.CurrentState);
             // StateTick：int32
             h = MixInt32(h, link.StateTick);
-            // PostStateHash：ulong（LE 8 字节）—— 包含最近一次状态变更后的全局哈希
-            h = MixUInt64(h, link.PostStateHash);
+            // 注：PostStateHash **不**进入 AnchorLink 哈希（见类 doc 注释）。
+            // MapState 哈希通过自身混合这 8 字节 ulong，不会在 AnchorLink 内部依赖 MapState hash。
 
             // ──────── 2. Vertex 段（多边形顶点）────────
             var poly = link.Polygon;

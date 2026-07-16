@@ -121,16 +121,16 @@ namespace Starfall.Tests.EditMode.Map.Commands
         [Test]
         public void Construct_InvalidPolygon_Throws()
         {
-            // < 3 vertices → 构造期抛
-            var badPoly = new ConstellationPolygon(
-                new ConstellationPolygonId("poly-bad"),
-                new List<ConstellationVertex>
-                {
-                    new ConstellationVertex(0, 0, DimensionLayer.Reality),
-                    new ConstellationVertex(1, 0, DimensionLayer.Reality),
-                });
+            // < 3 vertices → ConstellationPolygon 构造期抛 ArgumentException
+            // （该检查由 ConstellationPolygon 本身负责；Command 收到时不会再检查）
             Assert.Throws<System.ArgumentException>(() =>
-                new UpdateConstellationPolygonCommand(new AnchorLinkId("L1"), badPoly));
+                new ConstellationPolygon(
+                    new ConstellationPolygonId("poly-bad"),
+                    new List<ConstellationVertex>
+                    {
+                        new ConstellationVertex(0, 0, DimensionLayer.Reality),
+                        new ConstellationVertex(1, 0, DimensionLayer.Reality),
+                    }));
         }
     }
 }

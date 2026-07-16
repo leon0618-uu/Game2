@@ -90,11 +90,13 @@ namespace Starfall.Tests.EditMode.Map.Anchor
         }
 
         [Test]
-        public void Hash_DifferentPostStateHash_Different()
+        public void Hash_DifferentPostStateHash_SameBecauseNotHashed()
         {
+            // PostStateHash 故意不进入 AnchorLink 哈希（避免与 MapState 哈希形成循环）。
+            // 这里验证：两个 PostStateHash 不同的 link，hash 仍然相同。
             var l1 = MakeLink("L1", "P1", AnchorZoneState.Inactive, 0, 0UL);
             var l2 = MakeLink("L1", "P1", AnchorZoneState.Inactive, 0, 1UL);
-            Assert.AreNotEqual(
+            Assert.AreEqual(
                 AnchorLinkHasher.CalculateDeterministicHash(l1),
                 AnchorLinkHasher.CalculateDeterministicHash(l2));
         }

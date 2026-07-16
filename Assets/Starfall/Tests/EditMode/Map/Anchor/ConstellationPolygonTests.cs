@@ -105,7 +105,8 @@ namespace Starfall.Tests.EditMode.Map.Anchor
         [Test]
         public void Construct_VerticesNormalized_YFirst()
         {
-            // 输入顺序：(4,0), (0,0), (0,4) → 规范化后 (0,0), (0,4), (4,0)
+            // 输入顺序：(4,0), (0,0), (0,4) → 规范化以 Y→X 最小 (0,0) 为起点，
+            // 保持循环顺序：(0,0) → (0,4) → (4,0) → (0,0)（逆时针）。
             var input = new List<ConstellationVertex>
             {
                 new ConstellationVertex(4, 0, DimensionLayer.Reality),
@@ -115,24 +116,28 @@ namespace Starfall.Tests.EditMode.Map.Anchor
             var p = new ConstellationPolygon(new ConstellationPolygonId("poly-norm"), input);
             Assert.AreEqual(0, p.Vertices[0].Coord.Y);
             Assert.AreEqual(0, p.Vertices[0].Coord.X);
-            Assert.AreEqual(4, p.Vertices[1].Coord.Y);
+            // 旋转后顺序保持原 cyclic 顺序：(0,0) → next (0,4) → next (4,0)
             Assert.AreEqual(0, p.Vertices[1].Coord.X);
-            Assert.AreEqual(0, p.Vertices[2].Coord.Y);
+            Assert.AreEqual(4, p.Vertices[1].Coord.Y);
             Assert.AreEqual(4, p.Vertices[2].Coord.X);
+            Assert.AreEqual(0, p.Vertices[2].Coord.Y);
         }
 
         [Test]
         public void Construct_VerticesNormalized_XSecond()
         {
-            // 输入顺序：(0,1,5), (0,1,1), (0,1,3) → 同 Y，按 X 排序
+            // 不同 Y 的顶点 → 旋转后起点 = Y→X 最小的 (1,1)，保持 cyclic 顺序。
             var input = new List<ConstellationVertex>
             {
                 new ConstellationVertex(5, 1, DimensionLayer.Reality),
                 new ConstellationVertex(1, 1, DimensionLayer.Reality),
-                new ConstellationVertex(3, 1, DimensionLayer.Reality),
+                new ConstellationVertex(3, 3, DimensionLayer.Reality),
             };
             var p = new ConstellationPolygon(new ConstellationPolygonId("poly-norm-x"), input);
+            // 起点 = (1, 1) (Y→X 最小)
             Assert.AreEqual(1, p.Vertices[0].Coord.X);
+            Assert.AreEqual(1, p.Vertices[0].Coord.Y);
+            // 后续 (3, 3), (5, 1) — 保持 cyclic 顺序
             Assert.AreEqual(3, p.Vertices[1].Coord.X);
             Assert.AreEqual(5, p.Vertices[2].Coord.X);
         }
@@ -161,11 +166,13 @@ namespace Starfall.Tests.EditMode.Map.Anchor
         }
 
         [Test]
-        public void Contains_PointOnEdge_False()
+        public void Contains_PointOnEdge_ClosedConvention_True()
         {
-            // 半开约定：顶点位于边上 → false
+            // 射线法约定：边界点包含 inside = true。
+            // 原因：整数格点上顶点位于边上时，上下边界均被视为 inside（符合 Ray casting 跨立实验闭区间约定）。
             var p = new ConstellationPolygon(new ConstellationPolygonId("poly-sq"), Square());
-            Assert.IsFalse(p.Contains(new GridCoord(2, 0, DimensionLayer.Reality)));
+            // (2,0) 是底边上的点。射线法跨立实验下为 inside。
+            Assert.IsTrue(p.Contains(new GridCoord(2, 0, DimensionLayer.Reality)));
         }
 
         [Test]

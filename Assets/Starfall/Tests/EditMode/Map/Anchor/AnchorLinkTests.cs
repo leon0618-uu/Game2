@@ -111,6 +111,8 @@ namespace Starfall.Tests.EditMode.Map.Anchor
         [Test]
         public void TransitionTo_HashUpdatesOnStateChange()
         {
+            // TransitionTo 会更新 PostStateHash 字段（业务查询字段）。
+            // 注意：PostStateHash 故意不参与 AnchorLink hash（避免与 MapState hash 循环）。
             var link = MakeLink();
             ulong h0 = link.PostStateHash;
             link.TransitionTo(AnchorZoneState.PlayerControlled, 1, 0xABCDUL);

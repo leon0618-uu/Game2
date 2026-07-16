@@ -14,9 +14,10 @@ namespace Starfall.Tests.EditMode.Map.Anchor
         [Test]
         public void CompareTo_YFirst()
         {
-            var a = new ConstellationVertex(0, 1, DimensionLayer.Reality);
-            var b = new ConstellationVertex(5, 0, DimensionLayer.Reality);
-            Assert.Less(a.CompareTo(b), 0, "Y=1 > Y=0 → a > b");
+            // a.Y = 0, b.Y = 1 → a < b → a.CompareTo(b) < 0
+            var a = new ConstellationVertex(0, 0, DimensionLayer.Reality);
+            var b = new ConstellationVertex(5, 1, DimensionLayer.Reality);
+            Assert.Less(a.CompareTo(b), 0, "a.Y=0 < b.Y=1 → a < b");
         }
 
         [Test]

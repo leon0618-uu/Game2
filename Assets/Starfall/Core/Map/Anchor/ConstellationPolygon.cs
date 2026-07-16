@@ -57,7 +57,7 @@ namespace Starfall.Core.Map.Anchor
         public bool Equals(ConstellationPolygon other)
         {
             if (!Id.Equals(other.Id)) return false;
-            return VerticesEqual(Vertices, other.Vertices);
+            return VerticesSetEqual(Vertices, other.Vertices);
         }
 
         public override bool Equals(object obj) => obj is ConstellationPolygon other && Equals(other);
@@ -66,13 +66,17 @@ namespace Starfall.Core.Map.Anchor
         {
             unchecked
             {
+                // 顺序无关哈希（FNV-1a 风格）：
+                //   - Id hash；
+                //   - 对顶点按 Y→X→Layer 排序后顺序混合（与 Vertices 顺序无关）。
                 int h = Id.GetHashCode();
-                if (Vertices != null)
+                if (Vertices != null && Vertices.Count > 0)
                 {
-                    // 顺序无关哈希（FNV-1a 风格）：每顶点 hash XOR 自身 + 自身左移 7。
-                    for (int i = 0; i < Vertices.Count; i++)
+                    var sorted = new List<ConstellationVertex>(Vertices);
+                    sorted.Sort(); // ConstellationVertex.CompareTo: Y→X→Layer
+                    for (int i = 0; i < sorted.Count; i++)
                     {
-                        int vh = Vertices[i].GetHashCode();
+                        int vh = sorted[i].GetHashCode();
                         h = (h * 397) ^ vh;
                     }
                 }
@@ -114,16 +118,26 @@ namespace Starfall.Core.Map.Anchor
 
         // ──────────── 内部工具 ────────────
 
-        private static bool VerticesEqual(
+        /// <summary>
+        /// 两个顶点列表作为**多重集**比较（顺序无关）：
+        /// 两个多边形只要包含相同的顶点（不计顺序、不计 cyclic 旋转、不计 winding），就视为相等。
+        /// 这样的语义对撞点为：两份输入 “(a,b,c) 与 (a,c,b)” 相同；这是几何上合理的（同一个三角形）。
+        /// </summary>
+        private static bool VerticesSetEqual(
             IReadOnlyList<ConstellationVertex> a,
             IReadOnlyList<ConstellationVertex> b)
         {
             if (ReferenceEquals(a, b)) return true;
             if (a == null || b == null) return false;
             if (a.Count != b.Count) return false;
-            for (int i = 0; i < a.Count; i++)
+            // 排序后逐位比较
+            var sa = new List<ConstellationVertex>(a);
+            var sb = new List<ConstellationVertex>(b);
+            sa.Sort();
+            sb.Sort();
+            for (int i = 0; i < sa.Count; i++)
             {
-                if (!a[i].Equals(b[i])) return false;
+                if (!sa[i].Equals(sb[i])) return false;
             }
             return true;
         }

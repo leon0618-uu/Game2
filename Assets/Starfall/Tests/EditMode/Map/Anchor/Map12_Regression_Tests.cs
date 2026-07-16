@@ -77,7 +77,9 @@ namespace Starfall.Tests.EditMode.Map.Anchor
         public void Regression_Tile_AddRemove_StillWorks()
         {
             // MAP-04 Tile AddTile/RemoveTile
-            var coord = new GridCoord(2, 3);
+            // 注：MapTestHarness.Attach 已填满 8×8=64 tile (Layer=Reality)。
+            // 使用 Layer=Astral 的新 tile 避免重复。
+            var coord = new GridCoord(2, 3, Starfall.Core.Map.Coordinates.DimensionLayer.Astral);
             _map.AddTile(coord);
             Assert.IsTrue(_map.Tiles.Any(t => t.Equals(coord)));
             _map.RemoveTile(coord);
