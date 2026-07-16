@@ -1,17 +1,18 @@
 # IMPLEMENTATION STATUS · MVP "断裂点三号"
 
-> 最后更新：2026-07-16 00:35 GMT+8
-> 状态：MVP 完成（Task 01-20）+ M5+ 地图系统 **MAP-02 + MAP-03 + MAP-04 + MAP-05 + MAP-06 + MAP-07 + MAP-08 + MAP-09 + MAP-11a** 上线（commit `d792e29`，**核心玩法最高优先级**已完成）
-> 总测试：**1186 / 1186** EditMode PASS · Core 依赖守卫 4 / 4 PASS · 0 新 compile warnings from MAP-02/MAP-03/MAP-04/MAP-05/MAP-06/MAP-07/MAP-08/MAP-09/MAP-11a paths（main 上有 3 个 pre-existing warning，详见 §5.3）
+> 最后更新：2026-07-16 11:32 GMT+8
+> 状态：MVP 完成（Task 01-20）+ M5+ 地图系统 **MAP-02 + MAP-03 + MAP-04 + MAP-05 + MAP-06 + MAP-07 + MAP-08 + MAP-09 + MAP-11a + MAP-12** 上线（commit `04868a7`，**核心玩法最高优先级 + 锚点围区基础设施**已完成）
+> 总测试：**1326 / 1326** EditMode PASS · Core 依赖守卫 4 / 4 PASS · 0 新 compile warnings from MAP-02/MAP-03/MAP-04/MAP-05/MAP-06/MAP-07/MAP-08/MAP-09/MAP-11a/MAP-12 paths（main 上有 3 个 pre-existing warning，详见 §5.3）
 > MAP-07 QA Gate：[`Docs/qa-reports/map-07-gate.md`](qa-reports/map-07-gate.md)（Lead consolidated）
 > MAP-03 QA Gate：[`Docs/qa-reports/map-03-gate.md`](qa-reports/map-03-gate.md)（qa consolidated after commit-hygiene fix）
 > MAP-05 QA Gate：[`Docs/qa-reports/map-05-gate.md`](qa-reports/map-05-gate.md)（qa independent verification, 9/9 PASS）
 > MAP-09 QA Gate：[`Docs/qa-reports/map-09-gate.md`](qa-reports/map-09-gate.md)（qa independent verification, 11/11 PASS, MAP-08 零回归）
 > MAP-11a QA Gate：[`Docs/qa-reports/map-11-gate.md`](qa-reports/map-11-gate.md)（qa independent verification, 11/11 PASS, MAP-09 零回归 141/141）
+> MAP-12 QA Gate：[`Docs/qa-reports/map-12-gate.md`](qa-reports/map-12-gate.md)（qa independent verification, 140/140 PASS, MAP-03/05/09/11a 零回归）
 
 ## 1. 已完成功能
 
-### 1.1 Core（68 .cs · 含 MAP-02 + MAP-04 + MAP-06 + MAP-08 新增 34 个）
+### 1.1 Core（76 .cs · 含 MAP-02 + MAP-04 + MAP-06 + MAP-08 + MAP-12 新增 42 个）
 
 | 模块 | 文件 | 行数级别 | 状态 |
 |---|---|---|---|
@@ -36,6 +37,7 @@
 | **Map (MAP-05)** | **PathfindingService（A* 算法，N→E→S→W 邻居顺序，Tie-break (F,H,Y,X,Layer)） + MapPassabilityService（7 拒绝原因：BlockedByTile/HeightDelta/Unit/Phase/Region/InsufficientMovement/Pass） + MapMovementProfile（Standard/Flyer/Heavy 工厂）+ MovementRangeService（BFS-based AP 范围）+ MapPath（含 RiskTags）+ 保留 BFSPathfinder 向后兼容** | **900+** | **✅** |
 | **Map (MAP-09)** | **MapRegionDefinition（14 种 RegionKind 工厂）+ MapRegionState（8 字段 + 序列化契约）+ MapRegionStateHasher + MapRegionService（8-state machine + Tick + 4 个 MapEvent）+ MapSpawnPoint + MapSpawnService + 4 个新 IMapCommand（RegisterRegion/UnregisterRegion/TransitionRegionState/PlaceSpawnPoint）+ 非破坏性升级（保留 MAP-08 legacy `Regions` + 新增 `RegionStates`/`SpawnPoints` 集合）** | **1700+** | **✅** |
 | **Map (MAP-11a)** | **CollapseStage（5 阶段：Stable/Anomalous/Fracturing/Collapsing/GateFault）+ TileStability（6 值：Stable/Unstable/Fractured/Collapsing/Collapsed/Reconstructed）+ GlobalCollapseValue + LocalCollapseValue + CollapseValueService（Tick + ApplyLocalDamage + GetHotspots + 5 阶段效果 + MAP-09 联动）+ CollapseWarningService（4 预警等级）+ 3 个新 IMapCommand（ModifyGlobalCollapseValue/CollapseTile/ReconstructTile）+ 4 个新 MapEvent kinds (15-18) + 非破坏性升级（保留 MAP-02 `int GlobalCollapseValue` legacy）** | **1500+** | **✅** |
+| **Map (MAP-12)** | **ConstellationVertex + ConstellationPolygon + ConstellationPolygonId + ConstellationValidator（TooFewVertices / Collinear / SelfIntersecting 三态拒绝）+ AnchorLink + AnchorLinkId + AnchorLinkHasher（FNV-1a 64 + tag 0x43-0x47 + ComputeStateHash 无循环依赖）+ AnchorLinkCloner + 5 个新 IMapCommand（Register/Unregister/TransitionState/UpdatePolygon/BatchTransition）+ 非破坏性升级（保留 MAP-02 legacy `Anchors` 字段，新增 `AnchorLinks` 双写共存）+ MapState/MapStateHasher/MapStateCloner 集成** | **1500+** | **✅** |
 
 ### 1.2 Data（9 .cs）
 
@@ -58,7 +60,7 @@
 | Camera | BattleCameraAutoSetup（场景无 Camera 时自动俯瞰） | ✅ |
 | Stub | StubBoardPresenter / StubBattleHud（保留 fallback，Task 17+18+19 已替代） | ⚠️ fallback |
 
-### 1.4 Tests EditMode（44 文件 / 596 测试 · 含 MAP-01 + MAP-02 + MAP-04 + MAP-06 + MAP-08 新增 424 测试）
+### 1.4 Tests EditMode（54 文件 / 736 测试 · 含 MAP-01 + MAP-02 + MAP-04 + MAP-06 + MAP-08 + MAP-12 新增 564 测试）
 
 | 测试集 | 测试数 | 内容 |
 |---|---|---|
@@ -90,11 +92,12 @@
 | **Map/Pathfinding（MAP-05）** | **93** | **PathfindingService (12) + MapPassability (15) + MovementRange (10) + MovementProfile (8) + MapPath (6) + Map05_TaskId (5) + DualBackwardCompat (37 衍生)** |
 | **Map/Regions（MAP-09）** | **141** | **MapRegionService (45) + MapRegionDefinition (33) + SpawnPoint (15) + MapRegionState (13) + RegionEvent (12) + DeploymentValidation (10) + Map09_TaskId (8) + Map09_HashStability (5)** |
 | **Map/Collapse（MAP-11a）** | **186** | **CollapseStage (21) + TileStability (19) + GlobalCollapseValue (24) + LocalCollapseValue (19) + CollapseValueService (27) + CollapseWarningService (24) + ModifyGlobalCVCommand (17) + CollapseTileCommand (13) + ReconstructTileCommand (13) + Map11_TaskId (9)** |
+| **Map/Anchor（MAP-12）** | **140** | **ConstellationVertex (8) + ConstellationPolygon (17) + ConstellationValidator (17) + AnchorLink (14) + AnchorLinkHasher (12) + AnchorLinkCloner (7) + 5 AnchorLink Command (43) + Map12_TaskId (5) + Map12_HashStability (8) + Map12_Regression (7) + 1 集成 (2)** |
 | UndoIntegrationTests | 8 | 21-B Undo RestoreState 集成 |
 | Phase 19 单元扩展 | 12 | LevelLoopTests 同源增量 |
 | Phase 19 综合 | 17 | 同上组合 |
 
-**总计**：**1186 / 1186 EditMode PASS · 0 failed · 0 skipped**（main HEAD `d792e29`，**MAP-11a + MAP-09 + MAP-05 + MAP-03 + MAP-07 + MAP-08 核心玩法已上**）。
+**总计**：**1326 / 1326 EditMode PASS · 0 failed · 0 skipped**（main HEAD `04868a7`，**MAP-12 + MAP-11a + MAP-09 + MAP-05 + MAP-03 + MAP-07 + MAP-08 核心玩法已上**）。
 
 qa Gate 独立报告：
 - MAP-02：[`docs/qa-reports/map-02-gate.md`](qa-reports/map-02-gate.md)
@@ -146,20 +149,22 @@ ce2391a9 merge: agent/18-hud-and-preview (Task 18 HUD 与预览) into main
   - **MAP-05 Pathfinding/A*/Passability/Range** → main HEAD `61361b9`（93 新 EditMode 测试：PathfindingService 12 + MapPassability 15 + MovementRange 10 + MovementProfile 8 + MapPath 6 + Map05_TaskId 5；A* PathfindingService 含 N→E→S→W 邻居 + Tie-break (F,H,Y,X,Layer) 确定性 + MapPassabilityService 7 拒绝原因校验链 + MapMovementProfile Standard/Flyer/Heavy + MovementRangeService BFS-based AP 范围；BFSPathfinder 向后兼容保留；详见 [`docs/qa-reports/map-05-gate.md`](qa-reports/map-05-gate.md)）
   - **MAP-09 MapRegion + SpawnPoint + StateMachine** → main HEAD `e781f49`（141 新 EditMode 测试：MapRegionService 45 + MapRegionDefinition 33 + SpawnPoint 15 + MapRegionState 13 + RegionEvent 12 + DeploymentValidation 10 + Map09_TaskId 8 + Map09_HashStability 5；14 种 RegionKind + 8-state machine + Tick 推进 + 4 个 MapEvent + 4 个新 IMapCommand + MapStateHasher tag 0x34/0x35 + MAP-08 零回归（FlipRegionPhaseCommand 依赖 legacy `Regions` 字段保留）；详见 [`docs/qa-reports/map-09-gate.md`](qa-reports/map-09-gate.md)）
 - 下一步候选（按核心性排序）：
-  - **MAP-11 CV（Corruption Value）**（全局资源，与 MAP-09 Escort/Capture 进度联动；Lead 默认推荐）
-  - MAP-10 MapObject 完整化（重型，超 3-4 天预算）
-  - MAP-12 AnchorLink + ConstellationPolygon（整数射线 + 自相交拒绝）
-  - MAP-05 A\* 寻路 + MapPassability + MovementRange (依赖 MAP-04 的 TileDefinition.BlocksMovement)
-  - MAP-09 MapRegion 完整化（已有 placeholder，依赖 MAP-07 完成后）
-  - MAP-10 MapObject + MapObjectStateMachine + 12 ObjectTypes（重型，超 3-4 天预算）
-  - MAP-11 CV (Corruption Value)
-  - MAP-12 AnchorLink + ConstellationPolygon（整数 + 自相交拒绝）
+  - **MAP-10 MapObject + MapObjectStateMachine + 12 ObjectTypes**（重型，超 3-4 天预算；Lead 默认推荐——基础设施缺口，影响后续 Constellation 触发战斗效果）
+  - MAP-11b EnvironmentSchedule（`agent/map-11b-env-schedule` 分支已实现 9 commit + ADR-0008 8510 bytes + 38 测试，未合 main——可作快速 house-keeping）
+  - MAP-12b 引力度 / 律令 / GravityDecree（基于 MAP-12 锚点围区基础设施，需用户批准业务规则）
+  - MAP-13 MapDefinitionRepository + MapValidationService（数据层）
+  - MAP-14 Unity MapView / TileView / PhaseLayerView / HighlightView / DebugOverlay（Unity 表现）
+  - MAP-15 MapInputController + 路径预览（输入）
+  - MAP-16 Starfall Map Editor（独立程序集）
+  - MAP-17 MAP_DEV_PHASE_TEST_001（12×14 双层压力）
+  - MAP-18 性能基线
 
 详见审计与决策记录：
 
 - [Docs/MAP_SYSTEM_AUDIT.md](../Docs/MAP_SYSTEM_AUDIT.md)（xingyuan-architect 撰写，18 MAP vs MVP 现状对照）
 - [Docs/MAP_SYSTEM_FORWARD_PLAN.md](../Docs/MAP_SYSTEM_FORWARD_PLAN.md)（Lead 采纳纪要 + §3.4 已对 qa advisory #4 更正）
 - [docs/ADR/ADR-0003-map-state-hash.md](../ADR/ADR-0003-map-state-hash.md)（Accepted）
+- [docs/ADR/ADR-0009-anchor-link-polygon.md](../ADR/ADR-0009-anchor-link-polygon.md)（Accepted）
 
 MVP 后续可选方向（**未经用户批准不得实施**）：
 

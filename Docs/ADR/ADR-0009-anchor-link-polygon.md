@@ -1,6 +1,6 @@
 # ADR-0009: AnchorLink + ConstellationPolygon（整数顶点 + 自相交拒绝 + 规范化 + IMapCommand 集成）
 
-- **状态**：**Proposed**（Pending gameplay 实现 + qa Gate acceptance；与 ADR-0003 / ADR-0004 同路线后续段）
+- **状态**：**Accepted**（2026-07-16 11:32 GMT+8 — qa independent Gate 1326/1326 PASS + MAP-03/05/09/11a 零回归 + 140 新 EditMode 测试；main HEAD `04868a7`；Lead 关键介入：spawn 中实时修正 spec tag 0x40/0x41 冲突 → 0x43-0x47）
 - **日期**：2026-07-16
 - **作者**：xingyuan-architect
 - **关联任务包**：MAP-12 `agent/map-12-anchor-link`（Task 21-L）
