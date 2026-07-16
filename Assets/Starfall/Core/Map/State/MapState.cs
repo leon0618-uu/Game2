@@ -422,6 +422,8 @@ namespace Starfall.Core.Map.State
                 sorted.Sort((a, b) => string.CompareOrdinal(a.Id.Value, b.Id.Value));
                 return sorted;
             }
+        }
+
         // ──────────── MAP-11b 新增入口（ActiveSchedule + PendingEvents）────────────
 
         /// <summary>设置当前激活的 <see cref="MapEnvironmentSchedule"/>。</summary>
@@ -460,7 +462,6 @@ namespace Starfall.Core.Map.State
         public ulong PostStateHash => MapStateHasher.CalculateDeterministicHash(this);
 
         public override string ToString()
-            => $"MapState(Def={Definition}, Ver={Version}, Layer={ActiveLayer}, CV={GlobalCollapseValue}, Stage={CurrentStage}, Tiles={TilesInternal.Count}, Anchors={AnchorsInternal.Count}, Regions={RegionsInternal.Count}, Objects={MapObjectsInternal.Count}, RegionStates={RegionStatesInternal.Count}, SpawnPoints={SpawnPointsInternal.Count}, LocalCVs={LocalCVsInternal.Count}, AnchorLinks={AnchorLinksInternal.Count})";
-            => $"MapState(Def={Definition}, Ver={Version}, Layer={ActiveLayer}, CV={GlobalCollapseValue}, Stage={CurrentStage}, Tiles={TilesInternal.Count}, Anchors={AnchorsInternal.Count}, Regions={RegionsInternal.Count}, Objects={MapObjectsInternal.Count}, RegionStates={RegionStatesInternal.Count}, SpawnPoints={SpawnPointsInternal.Count}, LocalCVs={LocalCVsInternal.Count}, ActiveScheduleId={ActiveSchedule.ScheduleId}, EnvTick={EnvironmentTickAccumulator}, Pending={PendingEventsInternal.Count})";
+            => $"MapState(Def={Definition}, Ver={Version}, Layer={ActiveLayer}, CV={GlobalCollapseValue}, Stage={CurrentStage}, Tiles={TilesInternal.Count}, Anchors={AnchorsInternal.Count}, Regions={RegionsInternal.Count}, Objects={MapObjectsInternal.Count}, RegionStates={RegionStatesInternal.Count}, SpawnPoints={SpawnPointsInternal.Count}, LocalCVs={LocalCVsInternal.Count}, AnchorLinks={AnchorLinksInternal.Count}, ActiveScheduleId={ActiveSchedule.ScheduleId}, EnvTick={EnvironmentTickAccumulator}, Pending={PendingEventsInternal.Count})";
     }
 }

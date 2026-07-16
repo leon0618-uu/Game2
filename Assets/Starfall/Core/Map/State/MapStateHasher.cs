@@ -361,6 +361,8 @@ namespace Starfall.Core.Map.State
             {
                 ulong linkHash = AnchorLinkHasher.CalculateDeterministicHash(link);
                 h = MixUInt64(h, linkHash);
+            }
+
             // ──────────── MAP-11b：ActiveSchedule ────────────
             // 写入 ScheduleId + CreatedTick + Event count + 每个 event 完整内容（按 events 顺序，
             // 不重排，因为 MapEnvironmentSchedule 已经按 phase 排好序）。

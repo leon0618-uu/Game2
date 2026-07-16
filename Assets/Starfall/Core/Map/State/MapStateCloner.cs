@@ -110,6 +110,8 @@ namespace Starfall.Core.Map.State
             foreach (var link in source.AnchorLinksInternal)
             {
                 clone.AnchorLinksInternal.Add(AnchorLinkCloner.DeepClone(link));
+            }
+
             // MAP-11b PendingEvents：MapEnvironmentEvent 是 class，引用复制即可（events 本身不可变）。
             foreach (var ev in source.PendingEventsInternal)
             {
