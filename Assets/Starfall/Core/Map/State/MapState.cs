@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Starfall.Core.Anchor;
+using Starfall.Core.Map.Anchor;
 using Starfall.Core.Map.Collapse;
 using Starfall.Core.Map.Coordinates;
 using Starfall.Core.Map.Regions;
@@ -99,6 +100,8 @@ namespace Starfall.Core.Map.State
         internal readonly List<MapSpawnPoint> SpawnPointsInternal;
         // MAP-11a 新增：每个 tile 独立的 CV（按 GridCoord 索引）。空 = 业务未使用。
         internal readonly Dictionary<GridCoord, LocalCollapseValue> LocalCVsInternal;
+        // MAP-12 新增：AnchorLink 集合（与 legacy Anchors 并存；不删除 legacy 字段）。
+        internal readonly List<AnchorLink> AnchorLinksInternal;
 
         public IReadOnlyList<GridCoord> Tiles => TilesInternal;
         public IReadOnlyList<AnchorZone> Anchors => AnchorsInternal;
@@ -106,6 +109,12 @@ namespace Starfall.Core.Map.State
         public IReadOnlyList<MapObjectInstance> MapObjects => MapObjectsInternal;
         public IReadOnlyList<MapRegionState> RegionStates => RegionStatesInternal;
         public IReadOnlyList<MapSpawnPoint> SpawnPoints => SpawnPointsInternal;
+        /// <summary>
+        /// doc2 MAP-12 <see cref="Starfall.Core.Map.Anchor.AnchorLink"/> 集合（只读视图）。
+        /// 写入由 <see cref="AddAnchorLink"/> / <see cref="RemoveAnchorLink"/> 统一入口。
+        /// 与 legacy <see cref="Anchors"/>（MAP-02 <see cref="AnchorZone"/>）共存。
+        /// </summary>
+        public IReadOnlyList<AnchorLink> AnchorLinks => AnchorLinksInternal;
 
         /// <summary>
         /// doc2 MAP-11a 每个 tile 的局部 CV 字典（只读视图）。写入由
@@ -133,6 +142,7 @@ namespace Starfall.Core.Map.State
             RegionStatesInternal = new List<MapRegionState>();
             SpawnPointsInternal = new List<MapSpawnPoint>();
             LocalCVsInternal = new Dictionary<GridCoord, LocalCollapseValue>();
+            AnchorLinksInternal = new List<AnchorLink>();
         }
 
         // ──────────── 集合修改入口（MAP-02 阶段仅供 Cloner / Test 使用）────────────
@@ -315,6 +325,61 @@ namespace Starfall.Core.Map.State
             return false;
         }
 
+        // ──────────── MAP-12 新增入口（AnchorLinks）────────────
+
+        /// <summary>添加一个 <see cref="AnchorLink"/>（Id 必须唯一，重复则抛 <see cref="InvalidOperationException"/>）。</summary>
+        public void AddAnchorLink(AnchorLink link)
+        {
+            if (link == null) throw new ArgumentNullException(nameof(link));
+            for (int i = 0; i < AnchorLinksInternal.Count; i++)
+            {
+                if (AnchorLinksInternal[i].Id.Equals(link.Id))
+                    throw new InvalidOperationException($"Duplicate AnchorLink.Id: {link.Id}.");
+            }
+            AnchorLinksInternal.Add(link);
+        }
+
+        /// <summary>按 <see cref="AnchorLinkId"/> 移除 <see cref="AnchorLink"/>。</summary>
+        public bool RemoveAnchorLink(AnchorLinkId linkId)
+        {
+            for (int i = 0; i < AnchorLinksInternal.Count; i++)
+            {
+                if (AnchorLinksInternal[i].Id.Equals(linkId))
+                {
+                    AnchorLinksInternal.RemoveAt(i);
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>按 <see cref="AnchorLinkId"/> 查找 <see cref="AnchorLink"/>；找到 → true。</summary>
+        public bool TryGetAnchorLink(AnchorLinkId linkId, out AnchorLink link)
+        {
+            link = null;
+            for (int i = 0; i < AnchorLinksInternal.Count; i++)
+            {
+                if (AnchorLinksInternal[i].Id.Equals(linkId))
+                {
+                    link = AnchorLinksInternal[i];
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>派生视图：所有 AnchorLinks 升序按 <see cref="AnchorLinkId"/> 排序（仅快照；不修改源集合）。</summary>
+        public List<AnchorLink> AllAnchorLinks
+        {
+            get
+            {
+                if (AnchorLinksInternal.Count <= 1) return new List<AnchorLink>(AnchorLinksInternal);
+                var sorted = new List<AnchorLink>(AnchorLinksInternal);
+                sorted.Sort((a, b) => string.CompareOrdinal(a.Id.Value, b.Id.Value));
+                return sorted;
+            }
+        }
+
         // ──────────── 确定性哈希（按需计算）────────────
 
         /// <summary>
@@ -324,6 +389,6 @@ namespace Starfall.Core.Map.State
         public ulong PostStateHash => MapStateHasher.CalculateDeterministicHash(this);
 
         public override string ToString()
-            => $"MapState(Def={Definition}, Ver={Version}, Layer={ActiveLayer}, CV={GlobalCollapseValue}, Stage={CurrentStage}, Tiles={TilesInternal.Count}, Anchors={AnchorsInternal.Count}, Regions={RegionsInternal.Count}, Objects={MapObjectsInternal.Count}, RegionStates={RegionStatesInternal.Count}, SpawnPoints={SpawnPointsInternal.Count}, LocalCVs={LocalCVsInternal.Count})";
+            => $"MapState(Def={Definition}, Ver={Version}, Layer={ActiveLayer}, CV={GlobalCollapseValue}, Stage={CurrentStage}, Tiles={TilesInternal.Count}, Anchors={AnchorsInternal.Count}, Regions={RegionsInternal.Count}, Objects={MapObjectsInternal.Count}, RegionStates={RegionStatesInternal.Count}, SpawnPoints={SpawnPointsInternal.Count}, LocalCVs={LocalCVsInternal.Count}, AnchorLinks={AnchorLinksInternal.Count})";
     }
 }
