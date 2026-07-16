@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using Starfall.Core.Anchor;
+using Starfall.Core.Map.Anchor;
 using Starfall.Core.Map.Collapse;
 using Starfall.Core.Map.Coordinates;
 
@@ -44,6 +45,8 @@ namespace Starfall.Core.Map.State
     /// <item><c>SpawnPoints</c> (tag=0x35, collection，按 SpawnId 升序；MAP-09 增量)</item>
     /// <item><c>GlobalCV</c> (tag=0x36, struct; 4 子标签写入 Value/Stage/Threshold/Tick; MAP-11a 增量)</item>
     /// <item><c>LocalCVs</c> (tag=0x37, collection，按 GridCoord.CompareTo 排序；MAP-11a 增量)</item>
+    /// <item><c>AnchorLinks</c> (tag=0x38, collection，按 AnchorLinkId 升序；MAP-12 增量。
+    ///       每 link 内部字节流由 <see cref="AnchorLinkHasher.CalculateDeterministicHash"/> 计算后以 8 字节 LE 混合。</item>
     /// </list>
     /// </summary>
     public static class MapStateHasher
@@ -95,6 +98,8 @@ namespace Starfall.Core.Map.State
         // MAP-11a 新增：GlobalCV (typed) + LocalCVs dictionary
         public const byte TagGlobalCV = 0x36;
         public const byte TagLocalCVs = 0x37;
+        // MAP-12 新增：AnchorLinks 集合段。
+        public const byte TagAnchorLinks = 0x38;
 
         // RegionState 子标签（与 MapRegionStateHasher 同协议但 tag 偏移以避免冲突）
         public const byte TagRStateId = 0x90;
@@ -318,6 +323,19 @@ namespace Starfall.Core.Map.State
                 h = MixInt32(h, TagLocalCVValue, lcv.Value);
                 h = MixInt32(h, TagLocalCVStability, (int)lcv.Stability);
                 h = MixInt32(h, TagLocalCVTick, lcv.TickAccumulated);
+            }
+
+            // ──────────── MAP-12：AnchorLinks（按 AnchorLinkId 升序）────────────
+            // 对每个 AnchorLink 调用 AnchorLinkHasher.CalculateDeterministicHash(link)
+            // 得到 8 字节 ulong，再以 LE 写入；tag 0x38 + count + 各 link 的 8 字节混合值。
+            var sortedAnchorLinks = new List<AnchorLink>(state.AnchorLinksInternal);
+            sortedAnchorLinks.Sort((a, b) => string.CompareOrdinal(a.Id.Value, b.Id.Value));
+            h = MixByte(h, TagAnchorLinks);
+            h = MixInt32(h, sortedAnchorLinks.Count);
+            foreach (var link in sortedAnchorLinks)
+            {
+                ulong linkHash = AnchorLinkHasher.CalculateDeterministicHash(link);
+                h = MixUInt64(h, linkHash);
             }
 
             return h;

@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Starfall.Core.Anchor;
+using Starfall.Core.Map.Anchor;
 using Starfall.Core.Map.Collapse;
 using Starfall.Core.Map.Coordinates;
 
@@ -31,6 +32,8 @@ namespace Starfall.Core.Map.State
     ///       <see cref="Starfall.Core.Map.Regions.MapSpawnPoint"/>（readonly struct）。</item>
     /// <item><see cref="MapState.LocalCVs"/>（MAP-11a）：新 <see cref="Dictionary{GridCoord, LocalCollapseValue}"/>；
     ///       每个 <see cref="LocalCollapseValue"/> 按值复制（readonly struct）。</item>
+    /// <item><see cref="MapState.AnchorLinks"/>（MAP-12）：新 <see cref="List{AnchorLink}"/>；
+    ///       每个 <see cref="AnchorLink"/> 通过 <see cref="AnchorLinkCloner.DeepClone"/> 深拷贝。</item>
     /// </list>
     /// </summary>
     public static class MapStateCloner
@@ -91,6 +94,13 @@ namespace Starfall.Core.Map.State
             foreach (var kv in source.LocalCVsInternal)
             {
                 clone.LocalCVsInternal[kv.Key] = kv.Value;
+            }
+
+            // MAP-12 AnchorLinks：通过 AnchorLinkCloner.DeepClone 完整重建每个 link。
+            // 与 legacy Anchors 互不影响。
+            foreach (var link in source.AnchorLinksInternal)
+            {
+                clone.AnchorLinksInternal.Add(AnchorLinkCloner.DeepClone(link));
             }
 
             return clone;
