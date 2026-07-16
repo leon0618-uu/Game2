@@ -10,12 +10,14 @@ namespace Starfall.Tests.EditMode.Map.Anchor
     /// doc2 MAP-12 <see cref="AnchorLinkCloner"/> 测试集。
     /// <para/>
     /// 覆盖：深拷贝独立 / 集合独立 / 修改克隆不修改原。
+    /// <para/>
+    /// **per ADR-0009 §9**：PostStateHash 由 (state, tick) 派生；克隆后 hash 同步。
     /// </summary>
     public class AnchorLinkClonerTests
     {
         private static AnchorLink MakeLink(string linkId = "L1", string polyId = "P1",
             AnchorZoneState state = AnchorZoneState.PlayerControlled,
-            int tick = 5, ulong hash = 0xABCDUL)
+            int tick = 5)
         {
             return new AnchorLink(
                 new AnchorLinkId(linkId),
@@ -28,8 +30,7 @@ namespace Starfall.Tests.EditMode.Map.Anchor
                         new ConstellationVertex(0, 4, DimensionLayer.Reality),
                     }),
                 initialState: state,
-                initialTick: tick,
-                initialPostStateHash: hash)
+                initialTick: tick)
             { /* CurrentState 由构造保证 = initialState */ };
         }
 
@@ -51,12 +52,18 @@ namespace Starfall.Tests.EditMode.Map.Anchor
         [Test]
         public void DeepClone_SameFieldValues_AfterTransition()
         {
-            var link = MakeLink(state: AnchorZoneState.PlayerControlled, tick: 5, hash: 0xABCDUL);
+            // 构造一个 CurrentState == InitialState 的 link（PlayerControlled）；
+            // 后续 TransitionTo 让它到 Active 状态。
+            var link = MakeLink(state: AnchorZoneState.PlayerControlled, tick: 5);
+            // 模拟业务层：迁移到 Active
+            link.TransitionTo(AnchorZoneState.Damaged, 7);
             var clone = AnchorLinkCloner.DeepClone(link);
             Assert.AreEqual(link.Id.Value, clone.Id.Value);
             Assert.AreEqual(link.CurrentState, clone.CurrentState);
             Assert.AreEqual(link.StateTick, clone.StateTick);
+            // PostStateHash 由 ComputeStateHash 派生；克隆后必须同步
             Assert.AreEqual(link.PostStateHash, clone.PostStateHash);
+            Assert.AreEqual(AnchorLinkHasher.ComputeStateHash(clone), clone.PostStateHash);
             Assert.AreEqual(link.InitialState, clone.InitialState);
             Assert.AreEqual(link.Polygon.Id.Value, clone.Polygon.Id.Value);
             Assert.AreEqual(link.Polygon.Vertices.Count, clone.Polygon.Vertices.Count);
@@ -107,7 +114,7 @@ namespace Starfall.Tests.EditMode.Map.Anchor
             };
             var clone = AnchorLinkCloner.DeepCloneAll(list);
             // 修改 list[0] 不影响 clone[0]
-            list[0].TransitionTo(AnchorZoneState.EnemyControlled, 10, 0UL);
+            list[0].TransitionTo(AnchorZoneState.EnemyControlled, 10);
             Assert.AreEqual(AnchorZoneState.PlayerControlled, clone[0].CurrentState);
         }
 

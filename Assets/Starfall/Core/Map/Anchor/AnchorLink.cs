@@ -24,6 +24,14 @@ namespace Starfall.Core.Map.Anchor
     ///       非法迁移抛 <see cref="InvalidAnchorLinkTransitionException"/>。</item>
     /// </list>
     /// <para/>
+    /// **PostStateHash**（per ADR-0009 §9）：
+    /// <list type="bullet">
+    /// <item>由 <see cref="AnchorLinkHasher.ComputeStateHash"/> 自动从（<see cref="CurrentState"/>,
+    ///       <see cref="StateTick"/>）计算；<strong>不</strong>包含 Polygon 顶点。</item>
+    /// <item>是"状态机内部哈希"——用于事件触发 + MapState hash 子段。零循环依赖。</item>
+    /// <item>构造期 / <see cref="TransitionTo"/> 后自动更新；外部无法直接写。</item>
+    /// </list>
+    /// <para/>
     /// **构造约束**：
     /// <list type="bullet">
     /// <item><paramref name="id"/> 不可为空；</item>
@@ -45,7 +53,10 @@ namespace Starfall.Core.Map.Anchor
         /// <summary>上次状态变更时的 tick（确定性时间戳，命令在 Execute 时填入）。</summary>
         public int StateTick { get; private set; }
 
-        /// <summary>上次状态变更后的 PostStateHash（确定性缓存，命令在 Execute 时填入）。</summary>
+        /// <summary>
+        /// 状态机内部哈希（仅由 state + tick 决定，由 <see cref="AnchorLinkHasher.ComputeStateHash"/>
+        /// 自动计算）。是 MapState hash 的子字段之一（tag <c>0x47</c>）。
+        /// </summary>
         public ulong PostStateHash { get; private set; }
 
         /// <summary>构造期初始状态（默认 <see cref="AnchorZoneState.Inactive"/>）。</summary>
@@ -55,8 +66,7 @@ namespace Starfall.Core.Map.Anchor
             AnchorLinkId id,
             ConstellationPolygon polygon,
             AnchorZoneState initialState = AnchorZoneState.Inactive,
-            int initialTick = 0,
-            ulong initialPostStateHash = 0UL)
+            int initialTick = 0)
         {
             if (initialTick < 0)
                 throw new ArgumentOutOfRangeException(nameof(initialTick), initialTick,
@@ -66,17 +76,20 @@ namespace Starfall.Core.Map.Anchor
             InitialState = initialState;
             CurrentState = initialState;
             StateTick = initialTick;
-            PostStateHash = initialPostStateHash;
+            // PostStateHash 初始计算：基于 (initialState, initialTick)
+            PostStateHash = AnchorLinkHasher.ComputeStateHash(this);
         }
 
         /// <summary>
         /// 状态机迁移（仅允许 <see cref="AnchorLinkStateMachine"/> 中声明的合法迁移）。
         /// 非法迁移抛 <see cref="InvalidAnchorLinkTransitionException"/>。
+        /// <para/>
+        /// <see cref="PostStateHash"/> 在迁移后**自动**由 <see cref="AnchorLinkHasher.ComputeStateHash"/>
+        /// 重新计算（基于新 <see cref="CurrentState"/> + 新 <see cref="StateTick"/>）。
         /// </summary>
         /// <param name="newState">目标状态。</param>
         /// <param name="tick">新 tick（必须 &gt;= 0）。</param>
-        /// <param name="newPostStateHash">新 PostStateHash（命令在 Execute 后写入）。</param>
-        public void TransitionTo(AnchorZoneState newState, int tick, ulong newPostStateHash = 0UL)
+        public void TransitionTo(AnchorZoneState newState, int tick)
         {
             if (tick < 0)
                 throw new ArgumentOutOfRangeException(nameof(tick), tick, "tick must be >= 0.");
@@ -86,12 +99,12 @@ namespace Starfall.Core.Map.Anchor
             }
             CurrentState = newState;
             StateTick = tick;
-            PostStateHash = newPostStateHash;
+            PostStateHash = AnchorLinkHasher.ComputeStateHash(this);
         }
 
         /// <summary>
-        /// 替换多边形（不影响状态 / tick）。仅当新多边形通过
-        /// <see cref="ConstellationValidator"/> 时允许。
+        /// 替换多边形（不影响状态 / tick / PostStateHash，因为 PostStateHash 只含 state + tick）。
+        /// 仅当新多边形通过 <see cref="ConstellationValidator"/> 时允许。
         /// </summary>
         public void UpdatePolygon(ConstellationPolygon newPolygon)
         {
@@ -100,7 +113,7 @@ namespace Starfall.Core.Map.Anchor
         }
 
         public override string ToString()
-            => $"AnchorLink(Id={Id}, State={CurrentState}, Polygon={Polygon}, Tick={StateTick})";
+            => $"AnchorLink(Id={Id}, State={CurrentState}, Polygon={Polygon}, Tick={StateTick}, PostStateHash=0x{PostStateHash:X16})";
     }
 
     /// <summary>

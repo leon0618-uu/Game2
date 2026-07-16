@@ -13,8 +13,8 @@ namespace Starfall.Core.Map.Anchor
     ///       （同 Id + 同 vertices 列表 — 由于 <see cref="ConstellationPolygon"/> 构造期
     ///       已规范化，新实例的 <see cref="ConstellationPolygon.Vertices"/> 与源独立）。</item>
     /// <item><see cref="AnchorLink.CurrentState"/> / <see cref="AnchorLink.StateTick"/> /
-    ///       <see cref="AnchorLink.PostStateHash"/>：按值复制；通过
-    ///       <see cref="AnchorLink.TransitionTo"/>（同状态自迁移总是合法）同步到克隆实例。</item>
+    ///       <see cref="AnchorLink.PostStateHash"/>：按值复制；
+    ///       PostStateHash 通过 <see cref="AnchorLink.TransitionTo"/> 重新计算（自迁移合法）。</item>
     /// <item><see cref="AnchorLink.InitialState"/>：按值复制（构造期传入）。</item>
     /// </list>
     /// <para/>
@@ -38,21 +38,21 @@ namespace Starfall.Core.Map.Anchor
             var newPoly = new ConstellationPolygon(source.Polygon.Id, newPolyVerts);
 
             // 1) 用 InitialState 构造（保证 InitialState 字段独立）
+            //    PostStateHash 由 AnchorLink 构造期自动 ComputeStateHash 计算。
             var clone = new AnchorLink(
                 source.Id,
                 newPoly,
                 initialState: source.InitialState,
-                initialTick: source.StateTick,
-                initialPostStateHash: source.PostStateHash);
+                initialTick: source.StateTick);
 
-            // 2) 同步 CurrentState（若已迁移）
-            //    同状态自迁移总是合法（AnchorLinkStateMachine），故即使 InitialState == CurrentState
-            //    也可以安全调用 TransitionTo(CurrentState, StateTick, PostStateHash)。
+            // 2) 同步 CurrentState（若已迁移）。
+            //    注：PostStateHash 是 (state, tick) 的函数；同 (state, tick) 的两次
+            //    ComputeStateHash 结果一致，故自迁移后 PostStateHash 仍正确。
+            //    同状态自迁移 (InitialState == CurrentState) 在 StateMachine 总是合法。
             if (clone.CurrentState != source.CurrentState
-                || clone.StateTick != source.StateTick
-                || clone.PostStateHash != source.PostStateHash)
+                || clone.StateTick != source.StateTick)
             {
-                clone.TransitionTo(source.CurrentState, source.StateTick, source.PostStateHash);
+                clone.TransitionTo(source.CurrentState, source.StateTick);
             }
 
             return clone;

@@ -53,10 +53,8 @@ namespace Starfall.Core.Map.Commands
 
             _executed = true;
             _addedLink = Link;
-            // 记录新 PostStateHash（命令完成后由 MapState.PostStateHash 计算）
-            _addedPostStateHash = mapState.PostStateHash;
-            // 把 PostStateHash 同步回 link，让后续 Hasher 看到
-            Link.TransitionTo(Link.CurrentState, Link.StateTick, _addedPostStateHash);
+            // 注：PostStateHash 由 AnchorLink 内部自动 ComputeStateHash(state, tick) 维护。
+            // 命令层不再需要手动传 hash 参数（避免循环依赖 — see ADR-0009 §9 ComputeStateHash）。
 
             var events = new List<MapEvent>(1)
             {
@@ -85,7 +83,6 @@ namespace Starfall.Core.Map.Commands
 
         private bool _executed;
         private AnchorLink _addedLink;
-        private ulong _addedPostStateHash;
 
         public override string ToString()
             => $"RegisterAnchorLinkCommand(LinkId={Link.Id.Value}, PolygonId={Link.Polygon.Id.Value})";

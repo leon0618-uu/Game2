@@ -66,19 +66,13 @@ namespace Starfall.Core.Map.Commands
                 return MapCommandResult.Fail(
                     $"illegal anchor link transition: {LinkId.Value} {prevState} -> {NewState}");
 
-            link.TransitionTo(NewState, Tick, 0UL); // 先写 state/tick，hash 稍后填
+            // TransitionTo 会自动通过 ComputeStateHash(state, tick) 刷新 PostStateHash；
+            // 命令层不传 hash 参数（避免与 MapState hash 形成循环依赖，see ADR-0009 §9）。
+            link.TransitionTo(NewState, Tick);
             _executed = true;
             _link = link;
             _prevState = prevState;
             _prevTick = prevTick;
-            _prevHash = prevHash;
-
-            // 3) 刷新 PostStateHash 到 link（让后续 AnchorLinkHasher 看到状态）
-            ulong newHash = mapState.PostStateHash;
-            // TransitionTo 自迁移 (prev == NewState) 合法；同状态时本分支不重写 hash。
-            // 但因为 prevState != NewState 时我们刚把 hash=0 写入，现在再调一次会覆盖。
-            // 用合法自迁移（同状态自迁移总是合法）：
-            link.TransitionTo(link.CurrentState, link.StateTick, newHash);
 
             var events = new List<MapEvent>(1)
             {
@@ -98,7 +92,7 @@ namespace Starfall.Core.Map.Commands
                 throw new InvalidOperationException("TransitionAnchorLinkStateCommand.Undo called without prior Execute.");
             // 自迁移（同 prevState）总是合法 —— 所以无论 prev -> New 是否还在合法表，
             // 撤销回 prev 都可通过 TransitionTo 同状态自迁移完成（prev -> prev 永远合法）。
-            _link.TransitionTo(_prevState, _prevTick, _prevHash);
+            _link.TransitionTo(_prevState, _prevTick);
             _executed = false;
             _link = null;
         }
@@ -119,7 +113,6 @@ namespace Starfall.Core.Map.Commands
         private AnchorLink _link;
         private AnchorZoneState _prevState;
         private int _prevTick;
-        private ulong _prevHash;
 
         public override string ToString()
             => $"TransitionAnchorLinkStateCommand(LinkId={LinkId.Value}, ToState={NewState}, Tick={Tick})";

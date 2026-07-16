@@ -6,29 +6,30 @@ namespace Starfall.Core.Map.Anchor
     /// <summary>
     /// doc2 MAP-12 <see cref="AnchorLink"/> 确定性哈希（FNV-1a 64 位）。
     /// <para/>
-    /// **字节编码协议**（AGENTS.md §11 + doc2 §12 稳定顺序）：
+    /// **字节编码协议**（per ADR-0009 §9）：
     /// <list type="number">
-    /// <item>AnchorLink header byte (<c>0x40</c>) + 长度前缀（uint32 LE）+ LinkId (UTF-8) + State (int32 LE) + StateTick (int32 LE)；</item>
-    /// <item>Vertex 段：byte <c>0x41</c>（"vertex entry"）+ 多边形 Id (UTF-8 + uint32 长度) + 顶点数 (uint32 LE) + 每顶点 (X int32, Y int32, Layer byte)。</item>
+    /// <item><c>0x43</c>（AnchorLinkId） + LinkId 字节（UTF-8 + 长度前缀）；</item>
+    /// <item>Vertex 段：VertexCount（uint32 LE 长度前缀）+ 每顶点 <c>0x44</c>（VertexEntry）+ X（int32 LE）+ Y（int32 LE）+ Layer（int32 LE）；</item>
+    /// <item><c>0x45</c>（AnchorLinkCurrentState） + CurrentState（int32 LE）；</item>
+    /// <item><c>0x46</c>（AnchorLinkStateTick） + StateTick（int32 LE）；</item>
+    /// <item><c>0x47</c>（AnchorLinkPostStateHash） + <see cref="ComputeStateHash"/>（uint64 LE）。</item>
     /// </list>
     /// <para/>
-    /// **tag 字节选择说明**：
+    /// **tag 字节选择说明**（per ADR-0009 §9 + Alternatives F）：
     /// <list type="bullet">
-    /// <item><c>0x40</c>（AnchorLink header）和 <c>0x41</c>（Vertex entry）在本类作用域内；
-    ///       不与 <see cref="Starfall.Core.Map.State.MapStateHasher"/> 在同一上下文冲突——
-    ///       MapState 调 <see cref="CalculateDeterministicHash(AnchorLink)"/> 时只混合 8 字节 ulong，
-    ///       内部 tag 字节不会出现在 MapState 顶层 tag 流里。</item>
-    /// <item>MapStateHasher 顶层使用 <c>0x38</c>（TagAnchorLinks）作为集合段标识。</item>
+    /// <item>任务原 spec 建议 <c>0x40/0x41</c>，但 [ADR-0003 §4] 既有字段已占用
+    ///       <c>0x40 = TagAnchorZoneId</c>、<c>0x41 = TagAnchorOwner</c>、<c>0x42 = TagAnchorVertex</c>。
+    ///       若按原 spec 会破坏既有 294+ EditMode 测试的字节流期望。</item>
+    /// <item>本实现改用 <c>0x43-0x47</c>（与 legacy anchor sub-tags <c>0x40-0x42</c> 邻接但**无碰撞**），
+    ///       与 ADR-0009 §9 完全一致。</item>
+    /// <item>顶层 <see cref="Starfall.Core.Map.State.MapStateHasher"/> 集合段使用
+    ///       <c>0x38</c>（TagAnchorLinks），与 <c>0x37</c>（TagLocalCVs）邻接但无碰撞。</item>
     /// </list>
     /// <para/>
-    /// **状态参与哈希**：<see cref="AnchorLink.CurrentState"/>、<see cref="AnchorLink.StateTick"/>
-    /// 都参与哈希 ——
-    /// 因为状态机变化会改变逻辑结果，Replay 必须能区分。
-    /// <para/>
-    /// **不参与 <see cref="AnchorLink.PostStateHash"/>**：PostStateHash 是 <see cref="AnchorLink"/>
-    /// 与 <see cref="MapState"/> 之间的循环引用（PostStateHash = MapState 的 hash at the time
-    /// of transition）—— 如果纳入 AnchorLink hash，会导致 MapState hash 依赖自身。
-    /// PostStateHash 是 <strong>只供业务查询</strong>的缓存字段，不进入本类的哈希范围。
+    /// **PostStateHash 独立性**（per ADR-0009 §9 ComputeStateHash）：
+    /// <see cref="PostStateHash"/> 由 <see cref="ComputeStateHash"/> 计算，
+    /// 仅依赖（<see cref="AnchorLink.CurrentState"/>、<see cref="AnchorLink.StateTick"/>）——
+    /// 零循环依赖（<see cref="MapState"/> hash 不影响 <see cref="PostStateHash"/>）。
     /// <para/>
     /// **null 安全**：null 输入返回 FNV-1a offset basis（与 MapStateHasher 同语义）。
     /// </summary>
@@ -37,42 +38,92 @@ namespace Starfall.Core.Map.Anchor
         public const ulong Fnv1aOffsetBasis = 0xCBF29CE484222325UL;
         public const ulong Fnv1aPrime = 0x100000001B3UL;
 
-        // AnchorLink 内部协议 tag（在 AnchorLinkHasher 作用域内唯一）。
-        public const byte TagAnchorLinkHeader = 0x40;
-        public const byte TagAnchorLinkVertexEntry = 0x41;
+        // ADR-0009 §9 — AnchorLink sub-tags (与 legacy anchor 0x40-0x42 邻接但不碰撞)
+        public const byte TagAnchorLinkId = 0x43;
+        public const byte TagVertexEntry = 0x44;
+        public const byte TagAnchorLinkCurrentState = 0x45;
+        public const byte TagAnchorLinkStateTick = 0x46;
+        public const byte TagAnchorLinkPostStateHash = 0x47;
 
+        /// <summary>
+        /// 计算 <see cref="AnchorLink"/> 的完整 FNV-1a 64 哈希。
+        /// 字节布局严格按 ADR-0009 §9。
+        /// </summary>
         public static ulong CalculateDeterministicHash(AnchorLink link)
         {
             ulong h = Fnv1aOffsetBasis;
             if (link == null) return h;
+            return WriteLinkSubstructure(h, link);
+        }
 
-            // ──────── 1. AnchorLink header ────────
-            h = MixByte(h, TagAnchorLinkHeader);
-            // LinkId：string（UTF-8 + 长度前缀）
+        /// <summary>
+        /// 把单个 <see cref="AnchorLink"/> 的子结构（含 0x43-0x47 子 tag + 顶点序列）
+        /// 追加到当前 FNV-1a 链 <paramref name="h"/>，返回新哈希值。
+        /// 供 <see cref="Starfall.Core.Map.State.MapStateHasher"/> 在 collection
+        /// 段（tag 0x38）逐 link 写入时复用。
+        /// </summary>
+        public static ulong WriteLinkSubstructure(ulong h, AnchorLink link)
+        {
+            if (link == null) return h;
+
+            // ──────── 1. 0x43 AnchorLinkId ────────
+            h = MixByte(h, TagAnchorLinkId);
             h = MixString(h, link.Id.Value);
-            // CurrentState：int32（强转避免 enum 字节宽度不一致）
-            h = MixInt32(h, (int)link.CurrentState);
-            // StateTick：int32
-            h = MixInt32(h, link.StateTick);
-            // 注：PostStateHash **不**进入 AnchorLink 哈希（见类 doc 注释）。
-            // MapState 哈希通过自身混合这 8 字节 ulong，不会在 AnchorLink 内部依赖 MapState hash。
 
-            // ──────── 2. Vertex 段（多边形顶点）────────
+            // ──────── 2. Vertex 段（隐式长度前缀 + 每顶点 0x44）────────
+            // 注：VertexCount 无独立 tag 字节；作为长度前缀写在 tag 0x38 集合内
+            // （与 MapStateHasher 既有的 collection-with-length-prefix 模式一致）。
             var poly = link.Polygon;
-            h = MixByte(h, TagAnchorLinkVertexEntry);
-            // 多边形 Id（string，长度前缀 + UTF-8）
-            h = MixString(h, poly.Id.Value);
-            // 顶点数
             h = MixInt32(h, poly.Vertices.Count);
-            // 每顶点：(X int32 LE, Y int32 LE, Layer byte)
             for (int i = 0; i < poly.Vertices.Count; i++)
             {
+                h = MixByte(h, TagVertexEntry);
                 var v = poly.Vertices[i].Coord;
                 h = MixInt32(h, v.X);
                 h = MixInt32(h, v.Y);
-                h = MixByte(h, (byte)v.Layer);
+                h = MixInt32(h, (int)v.Layer);
             }
 
+            // ──────── 3. 0x45 CurrentState ────────
+            h = MixByte(h, TagAnchorLinkCurrentState);
+            h = MixInt32(h, (int)link.CurrentState);
+
+            // ──────── 4. 0x46 StateTick ────────
+            h = MixByte(h, TagAnchorLinkStateTick);
+            h = MixInt32(h, link.StateTick);
+
+            // ──────── 5. 0x47 PostStateHash ────────
+            h = MixByte(h, TagAnchorLinkPostStateHash);
+            h = MixUInt64(h, link.PostStateHash);
+
+            return h;
+        }
+
+        /// <summary>
+        /// 计算 <see cref="AnchorLink.PostStateHash"/>（per ADR-0009 §9 ComputeStateHash）。
+        /// <para/>
+        /// 算法（独立 FNV-1a 链，仅依赖 state + tick）：
+        /// <code>
+        /// hash = Fnv1aOffsetBasis
+        /// mix 0x45 + state_byte LE
+        /// mix 0x46 + tick LE 4
+        /// mix 0x47
+        /// return hash
+        /// </code>
+        /// <para/>
+        /// 零循环依赖（不读 MapState hash、不读 Polygon 顶点）。<see cref="AnchorLink"/>
+        /// 在构造期 / 状态迁移后自动调用本方法刷新 <see cref="AnchorLink.PostStateHash"/>。
+        /// </summary>
+        public static ulong ComputeStateHash(AnchorLink link)
+        {
+            ulong h = Fnv1aOffsetBasis;
+            if (link == null) return h;
+
+            h = MixByte(h, TagAnchorLinkCurrentState);
+            h = MixInt32(h, (int)link.CurrentState);
+            h = MixByte(h, TagAnchorLinkStateTick);
+            h = MixInt32(h, link.StateTick);
+            h = MixByte(h, TagAnchorLinkPostStateHash);
             return h;
         }
 

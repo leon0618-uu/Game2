@@ -57,7 +57,7 @@ namespace Starfall.Core.Map.Commands
             int newVersion = previousVersion + 1;
 
             // ── Phase 1: 校验所有 entries（不做任何修改） ──
-            var resolveBuf = new List<(AnchorLink link, AnchorZoneState prevState, int prevTick, ulong prevHash)>(Entries.Count);
+            var resolveBuf = new List<(AnchorLink link, AnchorZoneState prevState, int prevTick)>(Entries.Count);
             for (int i = 0; i < Entries.Count; i++)
             {
                 var e = Entries[i];
@@ -70,24 +70,18 @@ namespace Starfall.Core.Map.Commands
                         $"illegal anchor link transition (batch index {i}): {e.LinkId.Value} {link.CurrentState} -> {e.NewState}");
                 }
 
-                resolveBuf.Add((link, link.CurrentState, link.StateTick, link.PostStateHash));
+                resolveBuf.Add((link, link.CurrentState, link.StateTick));
             }
 
             // ── Phase 2: 应用所有修改（不会失败，因为 Phase 1 已校验）────────
+            // 注：TransitionTo 内部自动 ComputeStateHash(state, tick) 刷新 PostStateHash，
+            // 命令层不传 hash 参数（避免与 MapState hash 形成循环依赖，see ADR-0009 §9）。
             var events = new List<MapEvent>(Entries.Count);
             for (int i = 0; i < Entries.Count; i++)
             {
                 var entry = Entries[i];
                 var snap = resolveBuf[i];
-                snap.link.TransitionTo(entry.NewState, entry.Tick, 0UL);
-            }
-
-            // ── Phase 3: 刷新 PostStateHash ──
-            ulong newHash = mapState.PostStateHash;
-            for (int i = 0; i < Entries.Count; i++)
-            {
-                var snap = resolveBuf[i];
-                snap.link.TransitionTo(snap.link.CurrentState, snap.link.StateTick, newHash);
+                snap.link.TransitionTo(entry.NewState, entry.Tick);
                 events.Add(new MapEvent(MapEventKind.OnRegionChanged,
                     regionId: null, anchorId: null,
                     description: $"anchor-link-batch-transition:{snap.link.Id.Value}:{snap.prevState}->{snap.link.CurrentState}"));
@@ -109,7 +103,7 @@ namespace Starfall.Core.Map.Commands
             for (int i = 0; i < _snapshot.Count; i++)
             {
                 var snap = _snapshot[i];
-                snap.link.TransitionTo(snap.prevState, snap.prevTick, snap.prevHash);
+                snap.link.TransitionTo(snap.prevState, snap.prevTick);
             }
             _executed = false;
             _snapshot = null;
@@ -144,7 +138,7 @@ namespace Starfall.Core.Map.Commands
         }
 
         private bool _executed;
-        private List<(AnchorLink link, AnchorZoneState prevState, int prevTick, ulong prevHash)> _snapshot;
+        private List<(AnchorLink link, AnchorZoneState prevState, int prevTick)> _snapshot;
 
         public override string ToString()
             => $"BatchTransitionAnchorLinksCommand(Count={Entries.Count})";

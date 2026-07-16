@@ -9,6 +9,9 @@ namespace Starfall.Tests.EditMode.Map.Anchor
     /// doc2 MAP-12 <see cref="AnchorLink"/> 测试集。
     /// <para/>
     /// 覆盖：TransitionTo / 状态变更 / hash 跟随状态变化 / 不可变字段（Id 不可改，Polygon 可更新）。
+    /// <para/>
+    /// **per ADR-0009 §9**：PostStateHash 由 <see cref="AnchorLinkHasher.ComputeStateHash"/>
+    /// 自动从 (state, tick) 计算；测试断言 PostStateHash 与 (state, tick) 派生值一致。
     /// </summary>
     public class AnchorLinkTests
     {
@@ -25,10 +28,11 @@ namespace Starfall.Tests.EditMode.Map.Anchor
         }
 
         private static AnchorLink MakeLink(string id = "link-1",
-            AnchorZoneState initialState = AnchorZoneState.Inactive)
+            AnchorZoneState initialState = AnchorZoneState.Inactive,
+            int initialTick = 0)
         {
             return new AnchorLink(new AnchorLinkId(id), MakePolygon("poly-" + id),
-                initialState: initialState, initialTick: 0, initialPostStateHash: 0UL);
+                initialState: initialState, initialTick: initialTick);
         }
 
         // ──────────── 构造 ────────────
@@ -42,7 +46,9 @@ namespace Starfall.Tests.EditMode.Map.Anchor
             Assert.AreEqual(AnchorZoneState.Inactive, link.CurrentState);
             Assert.AreEqual(AnchorZoneState.Inactive, link.InitialState);
             Assert.AreEqual(0, link.StateTick);
-            Assert.AreEqual(0UL, link.PostStateHash);
+            // PostStateHash 由 ComputeStateHash(Inactive, 0) 计算
+            ulong expectedHash = AnchorLinkHasher.ComputeStateHash(link);
+            Assert.AreEqual(expectedHash, link.PostStateHash);
         }
 
         [Test]
@@ -58,10 +64,12 @@ namespace Starfall.Tests.EditMode.Map.Anchor
         public void TransitionTo_LegalTransition_UpdatesStateAndTick()
         {
             var link = MakeLink();
-            link.TransitionTo(AnchorZoneState.PlayerControlled, 5, 0xDEADBEEFUL);
+            link.TransitionTo(AnchorZoneState.PlayerControlled, 5);
             Assert.AreEqual(AnchorZoneState.PlayerControlled, link.CurrentState);
             Assert.AreEqual(5, link.StateTick);
-            Assert.AreEqual(0xDEADBEEFUL, link.PostStateHash);
+            // PostStateHash 由 ComputeStateHash(PlayerControlled, 5) 自动计算
+            ulong expectedHash = AnchorLinkHasher.ComputeStateHash(link);
+            Assert.AreEqual(expectedHash, link.PostStateHash);
         }
 
         [Test]
@@ -69,7 +77,7 @@ namespace Starfall.Tests.EditMode.Map.Anchor
         {
             var link = MakeLink();
             // 同状态自迁移总是合法
-            link.TransitionTo(AnchorZoneState.Inactive, 1, 100UL);
+            link.TransitionTo(AnchorZoneState.Inactive, 1);
             Assert.AreEqual(AnchorZoneState.Inactive, link.CurrentState);
             Assert.AreEqual(1, link.StateTick);
         }
@@ -80,7 +88,7 @@ namespace Starfall.Tests.EditMode.Map.Anchor
             // Inactive → Destroyed 不在合法矩阵里
             var link = MakeLink();
             Assert.Throws<InvalidAnchorLinkTransitionException>(() =>
-                link.TransitionTo(AnchorZoneState.Destroyed, 1, 0UL));
+                link.TransitionTo(AnchorZoneState.Destroyed, 1));
         }
 
         [Test]
@@ -88,7 +96,7 @@ namespace Starfall.Tests.EditMode.Map.Anchor
         {
             var link = MakeLink();
             Assert.Throws<System.ArgumentOutOfRangeException>(() =>
-                link.TransitionTo(AnchorZoneState.PlayerControlled, -1, 0UL));
+                link.TransitionTo(AnchorZoneState.PlayerControlled, -1));
         }
 
         [Test]
@@ -96,28 +104,28 @@ namespace Starfall.Tests.EditMode.Map.Anchor
         {
             // Damaged → Destroyed 合法
             var link = MakeLink(initialState: AnchorZoneState.Damaged);
-            link.TransitionTo(AnchorZoneState.Destroyed, 1, 0UL);
+            link.TransitionTo(AnchorZoneState.Destroyed, 1);
             Assert.AreEqual(AnchorZoneState.Destroyed, link.CurrentState);
 
             // Destroyed → PlayerControlled 不合法
             Assert.Throws<InvalidAnchorLinkTransitionException>(() =>
-                link.TransitionTo(AnchorZoneState.PlayerControlled, 2, 0UL));
+                link.TransitionTo(AnchorZoneState.PlayerControlled, 2));
 
             // Destroyed → Inactive 合法（重建）
-            link.TransitionTo(AnchorZoneState.Inactive, 3, 0UL);
+            link.TransitionTo(AnchorZoneState.Inactive, 3);
             Assert.AreEqual(AnchorZoneState.Inactive, link.CurrentState);
         }
 
         [Test]
         public void TransitionTo_HashUpdatesOnStateChange()
         {
-            // TransitionTo 会更新 PostStateHash 字段（业务查询字段）。
-            // 注意：PostStateHash 故意不参与 AnchorLink hash（避免与 MapState hash 循环）。
+            // PostStateHash 仅依赖 (state, tick)：状态改变 → hash 必变
             var link = MakeLink();
             ulong h0 = link.PostStateHash;
-            link.TransitionTo(AnchorZoneState.PlayerControlled, 1, 0xABCDUL);
-            Assert.AreEqual(0xABCDUL, link.PostStateHash);
+            link.TransitionTo(AnchorZoneState.PlayerControlled, 1);
             Assert.AreNotEqual(h0, link.PostStateHash);
+            // 校验 hash 实际值
+            Assert.AreEqual(AnchorLinkHasher.ComputeStateHash(link), link.PostStateHash);
         }
 
         // ──────────── UpdatePolygon ────────────
@@ -136,6 +144,9 @@ namespace Starfall.Tests.EditMode.Map.Anchor
                 });
             link.UpdatePolygon(newPoly);
             Assert.AreEqual("poly-new", link.Polygon.Id.Value);
+            // PostStateHash 不变（仅依赖 state + tick）
+            ulong expectedHash = AnchorLinkHasher.ComputeStateHash(link);
+            Assert.AreEqual(expectedHash, link.PostStateHash);
         }
 
         // ──────────── 不可变字段（Id）────────────

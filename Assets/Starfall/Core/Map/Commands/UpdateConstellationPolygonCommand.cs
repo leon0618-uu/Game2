@@ -48,14 +48,11 @@ namespace Starfall.Core.Map.Commands
             _executed = true;
             _link = link;
             _oldPolygon = link.Polygon;
-            _oldHash = link.PostStateHash;
 
             // 替换 polygon（ConstellationPolygon 构造期已校验顶点）
             link.UpdatePolygon(NewPolygon);
-
-            // 刷新 PostStateHash
-            ulong newHash = mapState.PostStateHash;
-            link.TransitionTo(link.CurrentState, link.StateTick, newHash);
+            // 注：PostStateHash 仅依赖 (state, tick) — 调 UpdatePolygon 不需要重新计算。
+            // 如未来 state/tick 也变了，再调 TransitionTo 即可。
 
             var events = new List<MapEvent>(1)
             {
@@ -74,8 +71,6 @@ namespace Starfall.Core.Map.Commands
             if (!_executed)
                 throw new InvalidOperationException("UpdateConstellationPolygonCommand.Undo called without prior Execute.");
             _link.UpdatePolygon(_oldPolygon);
-            // 恢复旧 PostStateHash（自迁移合法）
-            _link.TransitionTo(_link.CurrentState, _link.StateTick, _oldHash);
             _executed = false;
             _link = null;
             _oldPolygon = default;
@@ -95,7 +90,6 @@ namespace Starfall.Core.Map.Commands
         private bool _executed;
         private AnchorLink _link;
         private ConstellationPolygon _oldPolygon;
-        private ulong _oldHash;
 
         public override string ToString()
             => $"UpdateConstellationPolygonCommand(LinkId={LinkId.Value}, NewPolygon={NewPolygon.Id.Value})";
